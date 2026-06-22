@@ -6,6 +6,10 @@ import { FileTree } from './FileTree.js';
 import { MonthBrowser } from './MonthBrowser.js';
 import { ACCENT_PRESETS } from '@notes-app/common';
 
+// On macOS with titleBarStyle:'hiddenInset' the traffic lights (≈76px wide) sit
+// at the top-left of the window and overlap the sidebar header unless we offset.
+const isMacOS = typeof window !== 'undefined' && window.electronAPI?.platform === 'darwin';
+
 export function Sidebar() {
   const { notes, vaultRoot, createNote, theme, accent, setTheme, setAccent, syncStatus, toggleConflictsPanel } =
     useStore();
@@ -27,13 +31,16 @@ export function Sidebar() {
 
   return (
     <aside className="w-60 shrink-0 flex flex-col bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Header — on macOS left-pad past the traffic-light buttons */}
+      <div
+        className={`flex items-center justify-between py-3 border-b border-zinc-200 dark:border-zinc-800 ${isMacOS ? 'pl-[80px] pr-3' : 'px-3'}`}
+        style={isMacOS ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
+      >
+        <div className="flex items-center gap-2 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <SyncDot status={syncStatus} onClick={toggleConflictsPanel} />
           <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm truncate">{vaultName}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             title="New note"
             onClick={() => setShowNewNote((v) => !v)}
