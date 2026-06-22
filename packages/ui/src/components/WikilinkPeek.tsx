@@ -6,13 +6,17 @@ import { ipc } from '../ipc.js';
  * Listens for mouseover events on .wikilink elements and shows a read-only
  * preview of the target note in a floating panel.
  */
+// Estimated max height of the preview panel (px). Used to decide above/below.
+const PANEL_HEIGHT = 240;
+
 export function WikilinkPeek() {
   const notes = useStore((s) => s.notes);
   const [peek, setPeek] = useState<{
     title: string;
     content: string;
     x: number;
-    y: number;
+    linkTop: number;
+    linkBottom: number;
   } | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -31,7 +35,13 @@ export function WikilinkPeek() {
         .readFile(note.path)
         .then((content) => {
           const rect = target.getBoundingClientRect();
-          setPeek({ title, content: excerpt(content), x: rect.left, y: rect.bottom + 8 });
+          setPeek({
+            title,
+            content: excerpt(content),
+            x: rect.left,
+            linkTop: rect.top,
+            linkBottom: rect.bottom,
+          });
         })
         .catch(() => null);
     };
@@ -65,10 +75,17 @@ export function WikilinkPeek() {
 
   if (!peek) return null;
 
+  // Flip above the wikilink when there's not enough space below.
+  const spaceBelow = window.innerHeight - peek.linkBottom - 8;
+  const above = spaceBelow < PANEL_HEIGHT && peek.linkTop > spaceBelow;
+  const top = above ? undefined : peek.linkBottom + 8;
+  const bottom = above ? window.innerHeight - peek.linkTop + 8 : undefined;
+  const left = Math.min(Math.max(8, peek.x), window.innerWidth - 520);
+
   return (
     <div
       className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl p-4 max-w-lg text-sm text-zinc-700 dark:text-zinc-300"
-      style={{ left: Math.min(peek.x, window.innerWidth - 520), top: peek.y }}
+      style={{ left, top, bottom }}
       onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current); }}
       onMouseLeave={() => { hideTimer.current = setTimeout(() => setPeek(null), 500); }}
     >
