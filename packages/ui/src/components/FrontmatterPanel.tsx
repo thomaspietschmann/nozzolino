@@ -41,39 +41,39 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
   }
 
   return (
-    <aside className="w-64 shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 overflow-y-auto text-sm">
-      <h3 className="font-semibold text-zinc-400 uppercase tracking-wider text-xs mb-3">
+    <aside className="w-64 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-4 overflow-y-auto text-sm">
+      <h3 className="font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs mb-3">
         Frontmatter
       </h3>
 
       <div className="space-y-4">
         {/* UUID */}
         <div>
-          <dt className="text-zinc-500 text-xs mb-1">ID</dt>
-          <dd className="font-mono text-xs text-zinc-400 break-all">{note.id}</dd>
+          <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">ID</dt>
+          <dd className="font-mono text-xs text-zinc-500 dark:text-zinc-400 break-all">{note.id}</dd>
         </div>
 
         {/* Emoji */}
         {note.emoji && (
           <div>
-            <dt className="text-zinc-500 text-xs mb-1">Emoji</dt>
+            <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">Emoji</dt>
             <dd className="text-xl">{note.emoji}</dd>
           </div>
         )}
 
         {/* Tags */}
         <div>
-          <dt className="text-zinc-500 text-xs mb-1">Tags</dt>
+          <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">Tags</dt>
           <dd className="flex flex-wrap gap-1">
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-xs"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
               >
                 {tag}
                 <button
                   onClick={() => handleRemoveTag(tag)}
-                  className="text-zinc-500 hover:text-zinc-200 leading-none"
+                  className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-200 leading-none"
                   aria-label={`Remove tag ${tag}`}
                 >
                   ×
@@ -85,7 +85,7 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
               onChange={(e) => setNewTag(e.target.value)}
               onKeyDown={handleAddTag}
               placeholder="Add tag…"
-              className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-xs outline-none w-24 placeholder-zinc-600"
+              className="px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs outline-none w-24 placeholder-zinc-500 dark:placeholder-zinc-600"
             />
           </dd>
         </div>
@@ -93,7 +93,7 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
         {/* Outlinks */}
         {note.outlinks.length > 0 && (
           <div>
-            <dt className="text-zinc-500 text-xs mb-1">
+            <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">
               Links to ({note.outlinks.length})
             </dt>
             <dd className="space-y-1">
@@ -112,7 +112,7 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
         {/* Backlinks */}
         {backlinks.length > 0 && (
           <div>
-            <dt className="text-zinc-500 text-xs mb-1">
+            <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">
               Referenced by ({backlinks.length})
             </dt>
             <dd className="space-y-1">
@@ -120,7 +120,7 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
                 <button
                   key={bl.id}
                   onClick={() => void selectNote(bl.id)}
-                  className="block w-full text-left text-xs text-zinc-300 hover:text-white truncate"
+                  className="block w-full text-left text-xs text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white truncate"
                 >
                   {bl.emoji && <span className="mr-1">{bl.emoji}</span>}
                   {bl.title}
@@ -132,12 +132,12 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
 
         {/* Dates */}
         <div>
-          <dt className="text-zinc-500 text-xs mb-1">Created</dt>
-          <dd className="text-xs text-zinc-400">{fmt(note.created)}</dd>
+          <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">Created</dt>
+          <dd className="text-xs text-zinc-500 dark:text-zinc-400">{fmt(note.created)}</dd>
         </div>
         <div>
-          <dt className="text-zinc-500 text-xs mb-1">Modified</dt>
-          <dd className="text-xs text-zinc-400">{fmt(note.modified)}</dd>
+          <dt className="text-zinc-400 dark:text-zinc-500 text-xs mb-1">Modified</dt>
+          <dd className="text-xs text-zinc-500 dark:text-zinc-400">{fmt(note.modified)}</dd>
         </div>
       </div>
     </aside>

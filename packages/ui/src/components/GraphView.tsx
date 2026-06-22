@@ -17,7 +17,7 @@ interface TooltipState {
 }
 
 export function GraphView() {
-  const { notes, activeNoteId, accent, selectNote, setGraphOpen } = useStore();
+  const { notes, activeNoteId, accent, theme, selectNote, setGraphOpen } = useStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -61,6 +61,12 @@ export function GraphView() {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const isDark = theme === 'dark';
+    const nodeColor = isDark ? '#3f3f46' : '#e4e4e7';    // zinc-700 / zinc-200
+    const nodeLabelColor = isDark ? '#e4e4e7' : '#18181b'; // zinc-200 / zinc-900
+    const edgeColor = isDark ? '#52525b' : '#a1a1aa';    // zinc-600 / zinc-400
+    const edgeLabelColor = isDark ? '#71717a' : '#52525b'; // zinc-500 / zinc-600
+
     const cy = cytoscape({
       container: containerRef.current,
       elements: displayElements as cytoscape.ElementDefinition[],
@@ -68,9 +74,9 @@ export function GraphView() {
         {
           selector: 'node',
           style: {
-            'background-color': '#3f3f46', // zinc-700
+            'background-color': nodeColor,
             'label': 'data(label)',
-            'color': '#e4e4e7',            // zinc-200
+            'color': nodeLabelColor,
             'font-size': 14,
             'text-valign': 'center',
             'text-halign': 'center',
@@ -99,13 +105,13 @@ export function GraphView() {
           selector: 'edge',
           style: {
             'width': 1.5,
-            'line-color': '#52525b',           // zinc-600
-            'target-arrow-color': '#52525b',
+            'line-color': edgeColor,
+            'target-arrow-color': edgeColor,
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
             'label': 'data(label)',
             'font-size': 10,
-            'color': '#71717a',               // zinc-500
+            'color': edgeLabelColor,
             'text-opacity': 0,                // hidden by default; visible at high zoom
           },
         },
@@ -144,7 +150,7 @@ export function GraphView() {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [displayElements, focalId, accentRgb, selectNote]);
+  }, [displayElements, focalId, accentRgb, theme, selectNote]);
 
   const toggleRelType = useCallback((type: string) => {
     setSelectedRelTypes((prev) =>
@@ -167,16 +173,16 @@ export function GraphView() {
   }, []);
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden bg-zinc-950">
+    <div className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-zinc-950">
       {/* Controls bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 flex-wrap shrink-0">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex-wrap shrink-0">
         {/* Depth toggle */}
         <button
           onClick={() => setShowFull((v) => !v)}
           className={`px-2 py-1 text-xs rounded border transition-colors ${
             showFull
               ? 'border-accent bg-accent/20 text-white'
-              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+              : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
           }`}
         >
           {showFull ? 'Full graph' : 'Neighbours'}
@@ -190,7 +196,7 @@ export function GraphView() {
             className={`px-2 py-1 text-xs rounded border transition-colors ${
               selectedRelTypes.includes(type)
                 ? 'border-accent bg-accent/20 text-white'
-                : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
             }`}
           >
             {type}
@@ -203,28 +209,28 @@ export function GraphView() {
         <button
           title="Zoom in"
           onClick={zoomIn}
-          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors font-mono text-sm leading-none"
+          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors font-mono text-sm leading-none"
         >
           +
         </button>
         <button
           title="Zoom out"
           onClick={zoomOut}
-          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors font-mono text-sm leading-none"
+          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors font-mono text-sm leading-none"
         >
           −
         </button>
         <button
           title="Fit to view"
           onClick={fitView}
-          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs leading-none"
+          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-xs leading-none"
         >
           ⊡
         </button>
         <button
           title="Close graph (Ctrl+G)"
           onClick={() => setGraphOpen(false)}
-          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs leading-none"
+          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-xs leading-none"
         >
           ✕
         </button>
@@ -236,12 +242,12 @@ export function GraphView() {
 
         {tooltip !== null && (
           <div
-            className="absolute pointer-events-none z-10 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 shadow-lg max-w-48"
+            className="absolute pointer-events-none z-10 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 shadow-lg max-w-48"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
             <div className="font-medium truncate">{tooltip.title}</div>
             {tooltip.backlinkCount > 0 && (
-              <div className="text-zinc-400 mt-0.5">
+              <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">
                 {tooltip.backlinkCount} backlink{tooltip.backlinkCount !== 1 ? 's' : ''}
               </div>
             )}

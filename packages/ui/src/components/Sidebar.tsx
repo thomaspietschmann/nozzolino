@@ -26,32 +26,32 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col bg-zinc-900 border-r border-zinc-800 select-none">
+    <aside className="w-60 shrink-0 flex flex-col bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 select-none">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">
           <SyncDot status={syncStatus} onClick={toggleConflictsPanel} />
-          <span className="font-medium text-zinc-200 text-sm truncate">{vaultName}</span>
+          <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm truncate">{vaultName}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             title="New note"
             onClick={() => setShowNewNote((v) => !v)}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-lg leading-none"
+            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-lg leading-none"
           >
             +
           </button>
           <button
             title={viewMode === 'alpha' ? 'Switch to by month' : 'Switch to A–Z'}
             onClick={() => setViewMode((m) => (m === 'alpha' ? 'month' : 'alpha'))}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-sm leading-none"
+            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-sm leading-none"
           >
             {viewMode === 'alpha' ? '📅' : 'A–Z'}
           </button>
           <button
             title="Settings"
             onClick={() => setShowSettings((v) => !v)}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-sm leading-none"
+            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-sm leading-none"
           >
             ⚙
           </button>
@@ -60,13 +60,13 @@ export function Sidebar() {
 
       {/* New note input */}
       {showNewNote && (
-        <form onSubmit={handleCreate} className="px-3 py-2 border-b border-zinc-800">
+        <form onSubmit={handleCreate} className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
           <input
             autoFocus
             value={newNoteTitle}
             onChange={(e) => setNewNoteTitle(e.target.value)}
             placeholder="Note title…"
-            className="w-full bg-zinc-800 text-zinc-100 text-sm rounded px-2 py-1.5 outline-none placeholder-zinc-600 focus:ring-1 ring-accent"
+            className="w-full bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1.5 outline-none placeholder-zinc-500 dark:placeholder-zinc-600 focus:ring-1 ring-accent"
             onKeyDown={(e) => {
               if (e.key === 'Escape') setShowNewNote(false);
             }}
@@ -79,16 +79,16 @@ export function Sidebar() {
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="border-t border-zinc-800 p-3 space-y-3">
+        <div className="border-t border-zinc-200 dark:border-zinc-800 p-3 space-y-3">
           <div>
-            <p className="text-xs text-zinc-500 mb-2">Theme</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Theme</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setTheme('dark')}
                 className={`flex-1 text-xs py-1 rounded border transition-colors ${
                   theme === 'dark'
                     ? 'border-accent bg-accent/20 text-white'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
                 }`}
               >
                 Dark
@@ -98,7 +98,7 @@ export function Sidebar() {
                 className={`flex-1 text-xs py-1 rounded border transition-colors ${
                   theme === 'light'
                     ? 'border-accent bg-accent/20 text-white'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
                 }`}
               >
                 Light
@@ -107,7 +107,7 @@ export function Sidebar() {
           </div>
 
           <div>
-            <p className="text-xs text-zinc-500 mb-2">Accent</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Accent</p>
             <div className="flex gap-1.5 flex-wrap">
               {ACCENT_PRESETS.map((p) => (
                 <button
@@ -126,7 +126,7 @@ export function Sidebar() {
           <div>
             <button
               onClick={() => void ipc.exportZip()}
-              className="w-full text-xs py-1.5 rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+              className="w-full text-xs py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
             >
               ↓ Export vault to ZIP…
             </button>

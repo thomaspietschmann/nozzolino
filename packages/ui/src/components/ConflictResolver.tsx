@@ -61,16 +61,16 @@ export function ConflictResolver() {
   const segments: DiffSegment[] = loading ? [] : lineDiff(currentContent, conflictContent);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800 shrink-0">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <span className="text-red-400 text-lg shrink-0">⚠</span>
         <h2 className="flex-1 font-semibold text-base truncate">
           Resolve conflict: {noteTitle}
         </h2>
         <button
           onClick={() => setActiveConflict(null)}
-          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-sm leading-none"
+          className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-sm leading-none"
           title="Close (Escape)"
         >
           ✕
@@ -79,7 +79,7 @@ export function ConflictResolver() {
 
       <div className="flex-1 flex flex-col overflow-hidden p-4 gap-4 min-h-0">
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+          <div className="flex-1 flex items-center justify-center text-zinc-400 dark:text-zinc-500 text-sm">
             Loading…
           </div>
         ) : (
@@ -92,13 +92,13 @@ export function ConflictResolver() {
 
             {/* Merge editor */}
             <div className="flex flex-col flex-1 min-h-0 gap-1.5">
-              <label className="text-xs text-zinc-400 font-medium uppercase tracking-wide shrink-0">
+              <label className="text-xs text-zinc-500 dark:text-zinc-400 font-medium uppercase tracking-wide shrink-0">
                 Merged result — edit freely
               </label>
               <textarea
                 value={mergeText}
                 onChange={(e) => setMergeText(e.target.value)}
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded p-3 text-sm font-mono text-zinc-100 resize-none focus:outline-none focus:border-zinc-500 min-h-0"
+                className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded p-3 text-sm font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500 min-h-0"
                 spellCheck={false}
               />
             </div>
@@ -107,10 +107,10 @@ export function ConflictResolver() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-800 shrink-0">
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
         <button
           onClick={() => setActiveConflict(null)}
-          className="px-4 py-2 rounded text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+          className="px-4 py-2 rounded text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           Cancel
         </button>
@@ -135,10 +135,10 @@ interface DiffColumnProps {
 function DiffColumn({ title, segments, side }: DiffColumnProps) {
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">
-      <div className="text-xs text-zinc-400 font-medium uppercase tracking-wide mb-1 shrink-0">
+      <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium uppercase tracking-wide mb-1 shrink-0">
         {title}
       </div>
-      <div className="flex-1 overflow-auto rounded bg-zinc-900 border border-zinc-700 p-3 font-mono text-xs leading-5 min-h-0">
+      <div className="flex-1 overflow-auto rounded bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 p-3 font-mono text-xs leading-5 min-h-0">
         {segments.map((seg, i) => {
           // 'added' = present in conflict, absent in current; 'removed' = opposite
           const visible =
@@ -149,10 +149,10 @@ function DiffColumn({ title, segments, side }: DiffColumnProps) {
 
           const cls =
             seg.type === 'equal'
-              ? 'text-zinc-400'
+              ? 'text-zinc-500 dark:text-zinc-400'
               : seg.type === 'added'
-                ? 'bg-emerald-950 text-emerald-300'
-                : 'bg-red-950 text-red-300';
+                ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                : 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300';
 
           return (
             <span key={i} className={cls}>

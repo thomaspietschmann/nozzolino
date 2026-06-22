@@ -176,7 +176,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
   return (
     <div
       ref={mountRef}
-      className="prose-editor flex-1 px-12 py-8 text-zinc-100 overflow-y-auto"
+      className="prose-editor flex-1 px-12 py-8 text-zinc-900 dark:text-zinc-100 overflow-y-auto"
     />
   );
 }

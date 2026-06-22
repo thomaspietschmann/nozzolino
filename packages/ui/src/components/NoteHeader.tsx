@@ -33,7 +33,7 @@ export function NoteHeader({ noteId }: NoteHeaderProps) {
   if (!note) return null;
 
   return (
-    <div className="flex items-center gap-2 px-12 pt-8 pb-2 border-b border-zinc-800">
+    <div className="flex items-center gap-2 px-12 pt-8 pb-2 border-b border-zinc-200 dark:border-zinc-800">
       {note.emoji && <span className="text-2xl">{note.emoji}</span>}
       {editing ? (
         <input
@@ -48,18 +48,18 @@ export function NoteHeader({ noteId }: NoteHeaderProps) {
               setEditing(false);
             }
           }}
-          className="flex-1 text-2xl font-bold bg-transparent text-zinc-100 outline-none border-b border-accent"
+          className="flex-1 text-2xl font-bold bg-transparent text-zinc-900 dark:text-zinc-100 outline-none border-b border-accent"
         />
       ) : (
         <h1
-          className="flex-1 text-2xl font-bold text-zinc-100 cursor-text hover:text-white transition-colors"
+          className="flex-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100 cursor-text hover:text-zinc-700 dark:hover:text-white transition-colors"
           onClick={() => setEditing(true)}
         >
           {note.title}
         </h1>
       )}
       {isDirty && (
-        <span className="text-xs text-zinc-500 shrink-0">unsaved</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0">unsaved</span>
       )}
       <button
         title={graphOpen ? 'Show editor (Ctrl+G)' : 'Show graph (Ctrl+G)'}
@@ -67,7 +67,7 @@ export function NoteHeader({ noteId }: NoteHeaderProps) {
         className={`p-1.5 rounded transition-colors text-sm leading-none shrink-0 ${
           graphOpen
             ? 'bg-accent/20 text-white border border-accent'
-            : 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+            : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
         }`}
       >
         ⬡

@@ -125,34 +125,34 @@ export function CommandPalette() {
       <div className="fixed inset-0 z-40 bg-black/50" onClick={close} />
 
       {/* Panel */}
-      <div className="fixed z-50 top-[15vh] left-1/2 -translate-x-1/2 w-full max-w-2xl bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="fixed z-50 top-[15vh] left-1/2 -translate-x-1/2 w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col">
 
         {/* Input */}
-        <div className="flex items-center px-4 py-3 border-b border-zinc-800">
-          <span className="text-zinc-500 mr-3 text-lg">🔍</span>
+        <div className="flex items-center px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+          <span className="text-zinc-400 dark:text-zinc-500 mr-3 text-lg">🔍</span>
           <input
             ref={inputRef}
             type="text"
             placeholder="Search notes… (Ctrl+K)"
-            className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 outline-none text-sm"
+            className="flex-1 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none text-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
           {searchQuery && (
             <button
-              className="text-zinc-500 hover:text-zinc-300 ml-2 text-xs"
+              className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 ml-2 text-xs"
               onClick={() => setSearchQuery('')}
             >
               ✕
             </button>
           )}
-          <kbd className="ml-3 text-xs text-zinc-600 border border-zinc-700 rounded px-1 py-0.5">Esc</kbd>
+          <kbd className="ml-3 text-xs text-zinc-400 dark:text-zinc-600 border border-zinc-300 dark:border-zinc-700 rounded px-1 py-0.5">Esc</kbd>
         </div>
 
         {/* Tag filter chips */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-4 py-2 border-b border-zinc-800">
+          <div className="flex flex-wrap gap-1.5 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
             {allTags.map((tag) => (
               <button
                 key={tag}
@@ -160,7 +160,7 @@ export function CommandPalette() {
                 className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                   selectedTags.includes(tag)
                     ? 'bg-accent/30 border-accent/60 text-white'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
                 }`}
               >
                 {tag}
@@ -172,7 +172,7 @@ export function CommandPalette() {
         {/* Results */}
         <div className="overflow-y-auto max-h-80">
           {noteResults.length === 0 && debounced.trim() && (
-            <p className="px-4 py-6 text-center text-zinc-500 text-sm">No notes found for "{debounced}"</p>
+            <p className="px-4 py-6 text-center text-zinc-400 dark:text-zinc-500 text-sm">No notes found for "{debounced}"</p>
           )}
 
           {noteResults.map((result, i) => {
@@ -181,21 +181,21 @@ export function CommandPalette() {
               <button
                 key={result.noteId}
                 className={`w-full text-left px-4 py-2.5 flex flex-col gap-0.5 transition-colors ${
-                  i === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
+                  i === selectedIndex ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50'
                 }`}
                 onMouseDown={() => navigate(result.noteId)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
                 <div className="flex items-center gap-2">
                   {note?.emoji && <span className="shrink-0">{note.emoji}</span>}
-                  <span className="text-sm font-medium text-zinc-100 truncate">{result.title}</span>
+                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{result.title}</span>
                   {note && note.tags.length > 0 && (
-                    <span className="text-xs text-zinc-600 ml-auto shrink-0">{note.tags.join(', ')}</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-600 ml-auto shrink-0">{note.tags.join(', ')}</span>
                   )}
                 </div>
                 {result.snippet && (
                   <p
-                    className="text-xs text-zinc-400 truncate pl-0"
+                    className="text-xs text-zinc-500 dark:text-zinc-400 truncate pl-0"
                     // snippet already has <mark> tags; we sanitize by only allowing <mark>
                     dangerouslySetInnerHTML={{
                       __html: result.snippet.replace(/<(?!\/?(mark)[ >])[^>]+>/g, ''),
@@ -207,30 +207,30 @@ export function CommandPalette() {
           })}
 
           {/* Divider + vault-wide actions */}
-          {noteResults.length > 0 && <div className="border-t border-zinc-800 my-1" />}
+          {noteResults.length > 0 && <div className="border-t border-zinc-200 dark:border-zinc-800 my-1" />}
           {actions.map((action, i) => {
             const idx = noteResults.length + i;
             return (
               <button
                 key={action.label}
                 className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
-                  idx === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
+                  idx === selectedIndex ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50'
                 }`}
                 onMouseDown={action.run}
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
-                <span className="text-zinc-500">{action.icon}</span>
-                <span className="text-sm text-zinc-300">{action.label}</span>
+                <span className="text-zinc-400 dark:text-zinc-500">{action.icon}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">{action.label}</span>
               </button>
             );
           })}
         </div>
 
         {/* Footer hint */}
-        <div className="px-4 py-2 border-t border-zinc-800 flex items-center gap-3 text-xs text-zinc-600">
-          <span><kbd className="border border-zinc-700 rounded px-1">↑↓</kbd> navigate</span>
-          <span><kbd className="border border-zinc-700 rounded px-1">↵</kbd> open</span>
-          <span><kbd className="border border-zinc-700 rounded px-1">Esc</kbd> close</span>
+        <div className="px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-600">
+          <span><kbd className="border border-zinc-300 dark:border-zinc-700 rounded px-1">↑↓</kbd> navigate</span>
+          <span><kbd className="border border-zinc-300 dark:border-zinc-700 rounded px-1">↵</kbd> open</span>
+          <span><kbd className="border border-zinc-300 dark:border-zinc-700 rounded px-1">Esc</kbd> close</span>
         </div>
       </div>
     </>

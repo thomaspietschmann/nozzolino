@@ -21,16 +21,16 @@
 .ProseMirror h6 { @apply text-lg font-medium mb-2 mt-3; }
 
 .ProseMirror blockquote {
-  @apply pl-4 border-l-4 border-accent/50 text-zinc-400 italic my-3;
+  @apply pl-4 border-l-4 border-accent/50 text-zinc-600 dark:text-zinc-400 italic my-3;
 }
 
-.ProseMirror hr { @apply border-zinc-700 my-6; }
+.ProseMirror hr { @apply border-zinc-200 dark:border-zinc-700 my-6; }
 
 .ProseMirror pre {
-  @apply bg-zinc-900 rounded-lg p-4 my-3 overflow-x-auto text-sm font-mono;
+  @apply bg-zinc-100 dark:bg-zinc-900 rounded-lg p-4 my-3 overflow-x-auto text-sm font-mono;
 }
 .ProseMirror code {
-  @apply bg-zinc-800 rounded px-1.5 py-0.5 text-sm font-mono;
+  @apply bg-zinc-200 dark:bg-zinc-800 rounded px-1.5 py-0.5 text-sm font-mono;
 }
 .ProseMirror pre code { @apply bg-transparent p-0; }
 
@@ -46,9 +46,9 @@
 }
 .ProseMirror th,
 .ProseMirror td {
-  @apply border border-zinc-700 px-3 py-2;
+  @apply border border-zinc-200 dark:border-zinc-700 px-3 py-2;
 }
-.ProseMirror th { @apply bg-zinc-800 font-semibold; }
+.ProseMirror th { @apply bg-zinc-100 dark:bg-zinc-800 font-semibold; }
 .ProseMirror .selectedCell { @apply bg-accent/10; }
 .ProseMirror .column-resize-handle {
   @apply absolute right-0 top-0 bottom-0 w-0.5 bg-accent/50 cursor-col-resize;
@@ -109,20 +109,20 @@
 
 /* ─── Wikilink autocomplete dropdown ─────────────────────────────────── */
 .wikilink-dropdown {
-  @apply bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden;
+  @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden;
   min-width: 220px;
   max-width: 360px;
   max-height: 300px;
   overflow-y: auto;
 }
 .wikilink-dropdown__item {
-  @apply w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-2;
+  @apply w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2;
 }
 .wikilink-dropdown__item.is-selected {
-  @apply bg-accent/20 text-white;
+  @apply bg-accent/20 text-zinc-900 dark:text-white;
 }
 .wikilink-dropdown__item--create {
-  @apply text-zinc-500 italic border-t border-zinc-800;
+  @apply text-zinc-400 dark:text-zinc-500 italic border-t border-zinc-200 dark:border-zinc-800;
 }
 
 /* ─── highlight.js token colours (dark theme) ───────────────────────── */
@@ -142,3 +142,21 @@
 .hljs-title       { @apply text-sky-300; }
 .hljs-params      { @apply text-zinc-300; }
 .hljs-meta        { @apply text-rose-400; }
+
+/* ─── highlight.js light theme overrides ────────────────────────────── */
+html:not(.dark) .hljs-keyword     { @apply text-violet-600; }
+html:not(.dark) .hljs-built_in    { @apply text-blue-600; }
+html:not(.dark) .hljs-type        { @apply text-teal-600; }
+html:not(.dark) .hljs-literal     { @apply text-amber-600; }
+html:not(.dark) .hljs-number      { @apply text-amber-600; }
+html:not(.dark) .hljs-string      { @apply text-green-700; }
+html:not(.dark) .hljs-comment     { @apply text-zinc-400; }
+html:not(.dark) .hljs-function    { @apply text-blue-600; }
+html:not(.dark) .hljs-variable    { @apply text-zinc-800; }
+html:not(.dark) .hljs-attr        { @apply text-sky-600; }
+html:not(.dark) .hljs-punctuation { @apply text-zinc-500; }
+html:not(.dark) .hljs-operator    { @apply text-zinc-600; }
+html:not(.dark) .hljs-class       { @apply text-teal-700; }
+html:not(.dark) .hljs-title       { @apply text-sky-600; }
+html:not(.dark) .hljs-params      { @apply text-zinc-600; }
+html:not(.dark) .hljs-meta        { @apply text-rose-600; }

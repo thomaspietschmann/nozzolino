@@ -56,7 +56,7 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
   };
 
   if (groups.length === 0) {
-    return <p className="px-4 py-8 text-center text-zinc-500 text-sm">No notes yet</p>;
+    return <p className="px-4 py-8 text-center text-zinc-400 dark:text-zinc-500 text-sm">No notes yet</p>;
   }
 
   return (
@@ -67,7 +67,7 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
           <div key={label}>
             {/* Month header */}
             <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
               onClick={() => toggleGroup(label)}
             >
               <span>{label}</span>
@@ -82,7 +82,7 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
                   className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 rounded-lg mx-1 transition-colors ${
                     activeNoteId === note.id
                       ? 'bg-accent/20 text-white'
-                      : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                   style={{ width: 'calc(100% - 8px)' }}
                   onClick={() => void selectNote(note.id)}
@@ -90,7 +90,7 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
                   {note.emoji && <span className="shrink-0">{note.emoji}</span>}
                   <span className="truncate flex-1">{note.title}</span>
                   {note.tags.length > 0 && (
-                    <span className="text-xs text-zinc-600 shrink-0">
+                    <span className="text-xs text-zinc-400 dark:text-zinc-600 shrink-0">
                       {note.tags.length > 1 ? `${note.tags.length} tags` : note.tags[0]}
                     </span>
                   )}
