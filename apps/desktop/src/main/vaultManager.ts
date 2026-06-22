@@ -1,5 +1,6 @@
 import { relative, basename } from 'path';
 import { createHash } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 import { IPC } from '@notes-app/common';
@@ -228,7 +229,7 @@ export async function exportZip(win: BrowserWindow): Promise<string | null> {
 
   const outputPath = result.filePath;
   await new Promise<void>((resolve, reject) => {
-    const output = require('fs').createWriteStream(outputPath);
+    const output = createWriteStream(outputPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
     output.on('close', resolve);
