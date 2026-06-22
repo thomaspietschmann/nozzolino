@@ -34,6 +34,9 @@ export interface AppState {
    */
   pendingScrollTerm: string | null;
 
+  // Graph
+  graphOpen: boolean;
+
   // Sync
   syncStatus: SyncStatus;
 
@@ -52,6 +55,10 @@ export interface AppState {
   toggleFrontmatterPanel: () => void;
   upsertNoteRecord: (record: NoteRecord) => void;
   removeNoteRecord: (relativePath: string) => void;
+
+  // Actions — graph
+  toggleGraph: () => void;
+  setGraphOpen: (open: boolean) => void;
 
   // Actions — search / palette
   toggleSearch: () => void;
@@ -99,6 +106,9 @@ export const useStore = create<AppState>((set, get) => ({
   searchQuery: '',
   selectedTags: [],
   pendingScrollTerm: null,
+
+  // Graph initial state
+  graphOpen: false,
 
   async openVault(path: string) {
     const records = await ipc.openVault(path);
@@ -233,6 +243,16 @@ export const useStore = create<AppState>((set, get) => ({
     set((s) => ({
       notes: s.notes.filter((n) => n.path !== relativePath),
     }));
+  },
+
+  // ─── Graph ─────────────────────────────────────────────────────────────────
+
+  toggleGraph() {
+    set((s) => ({ graphOpen: !s.graphOpen }));
+  },
+
+  setGraphOpen(open: boolean) {
+    set({ graphOpen: open });
   },
 
   // ─── Search / palette ───────────────────────────────────────────────────────
