@@ -1,5 +1,6 @@
 import { Schema } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
+import { wikilinkNodeSpec } from './plugins/wikilink.js';
 
 const tableSchemaNodes = tableNodes({
   tableGroup: 'block',
@@ -160,6 +161,7 @@ export const schema = new Schema({
       },
     },
 
+    ...wikilinkNodeSpec(),
     ...tableSchemaNodes,
   },
 

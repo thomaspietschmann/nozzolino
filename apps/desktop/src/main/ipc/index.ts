@@ -46,6 +46,11 @@ export function registerIpcHandlers(win: BrowserWindow) {
     await vault.deleteFile(relativePath);
   });
 
+  // ─── Backlinks ───────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.VAULT_GET_BACKLINKS, async (_event, noteId: string) => {
+    return vault.getIndex()?.getBacklinks(noteId) ?? [];
+  });
+
   // ─── Image ───────────────────────────────────────────────────────────────
   ipcMain.handle(IPC.IMAGE_SAVE, async (_event, base64: string, ext: string) => {
     const activeNote = vault.getIndex()?.getAllNotes()[0];

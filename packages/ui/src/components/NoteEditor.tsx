@@ -13,7 +13,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { saveNote, setDirty } = useStore();
+  const { saveNote, setDirty, notes, createNote } = useStore();
 
   const handleSave = useCallback(
     (markdown: string) => {
@@ -37,14 +37,30 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     });
   }, []);
 
-  // Create the view when the component mounts or noteId changes
+  // Create or destroy the view when the note changes
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // Destroy previous view
     viewRef.current?.destroy();
 
-    const state = createEditorState({ content, saveImage });
+    const getSuggestions = (query: string) => {
+      const lower = query.toLowerCase();
+      return notes
+        .filter((n) => n.title.toLowerCase().includes(lower))
+        .slice(0, 8)
+        .map((n) => ({ title: n.title, emoji: n.emoji }));
+    };
+
+    const isResolved = (title: string) =>
+      notes.some((n) => n.title.toLowerCase() === title.toLowerCase());
+
+    const state = createEditorState({
+      content,
+      saveImage,
+      getSuggestions,
+      isResolved,
+      onCreateNote: (title) => void createNote(title),
+    });
 
     const view = new EditorView(mountRef.current, {
       state,
@@ -80,7 +96,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     if (!view) return;
     const current = toMarkdown(view.state.doc);
     if (current === content) return;
-    const newState = createEditorState({ content, saveImage });
+    const newState = createEditorState({ content });
     view.updateState(newState);
   }, [content]);
 

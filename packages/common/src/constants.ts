@@ -52,6 +52,7 @@ export const IPC = {
   VAULT_GET_NOTES: 'vault:getNotes',
   VAULT_GET_RECENT: 'vault:getRecent',
   VAULT_ADD_RECENT: 'vault:addRecent',
+  VAULT_GET_BACKLINKS: 'vault:getBacklinks',
   // File operations
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',

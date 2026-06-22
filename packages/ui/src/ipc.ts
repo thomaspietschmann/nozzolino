@@ -50,6 +50,10 @@ export const ipc = {
     return window.electronAPI.invoke<string>(IPC.IMAGE_SAVE, base64, ext);
   },
 
+  getBacklinks(noteId: string): Promise<NoteRecord[]> {
+    return window.electronAPI.invoke<NoteRecord[]>(IPC.VAULT_GET_BACKLINKS, noteId);
+  },
+
   onFileChanged(handler: (event: FileChangedEvent) => void): () => void {
     return window.electronAPI.on(IPC.VAULT_FILE_CHANGED, handler as (...args: unknown[]) => void);
   },

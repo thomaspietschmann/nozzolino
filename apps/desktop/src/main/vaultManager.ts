@@ -1,7 +1,7 @@
 import { join, relative, basename, dirname } from 'path';
 import { promises as fs } from 'fs';
 import type { BrowserWindow } from 'electron';
-import { IPC } from '@notes-app/common';
+import { IPC, replaceWikiLinkTarget } from '@notes-app/common';
 import { buildVaultIndex, watchVault, atomicWrite } from '@notes-app/vault';
 import type { VaultIndex, VaultWatcher } from '@notes-app/vault';
 
@@ -78,12 +78,42 @@ export async function createFile(title: string) {
 export async function renameFile(relativePath: string, newTitle: string) {
   if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
   const oldAbs = join(currentVaultRoot, relativePath);
+  const oldTitle = basename(relativePath, '.md');
   const newFileName = `${newTitle.replace(/[/\\:*?"<>|]/g, '-')}.md`;
   const newAbs = join(dirname(oldAbs), newFileName);
 
   await fs.rename(oldAbs, newAbs);
   vaultIndex.removeByPath(relativePath);
-  return vaultIndex.addOrRefresh(newAbs);
+  const updated = await vaultIndex.addOrRefresh(newAbs);
+
+  // Propagate rename in all notes that link to the old title (ADR-0009)
+  await propagateRename(oldTitle, newTitle);
+
+  return updated;
+}
+
+async function propagateRename(oldTitle: string, newTitle: string) {
+  if (!currentVaultRoot || !vaultIndex) return;
+
+  const notesWithLink = vaultIndex
+    .getAllNotes()
+    .filter((n) => n.outlinks.some((l) => l.targetTitle.toLowerCase() === oldTitle.toLowerCase()));
+
+  await Promise.all(
+    notesWithLink.map(async (note) => {
+      const absPath = join(currentVaultRoot!, note.path);
+      try {
+        const content = await fs.readFile(absPath, 'utf-8');
+        const updated = replaceWikiLinkTarget(content, oldTitle, newTitle);
+        if (updated !== content) {
+          await atomicWrite(absPath, updated);
+          await vaultIndex!.addOrRefresh(absPath);
+        }
+      } catch {
+        // File may have been deleted concurrently — skip
+      }
+    })
+  );
 }
 
 export async function deleteFile(relativePath: string): Promise<void> {

@@ -90,6 +90,41 @@
   font-size: 0.85em;
 }
 
+/* ─── Wikilinks ──────────────────────────────────────────────────────── */
+.wikilink {
+  @apply text-accent cursor-pointer rounded px-0.5 transition-colors;
+  background: rgb(var(--accent) / 0.08);
+}
+.wikilink:hover {
+  background: rgb(var(--accent) / 0.18);
+}
+.wikilink--unresolved {
+  @apply text-red-400;
+  background: rgb(239 68 68 / 0.08);
+  text-decoration: underline wavy rgb(239 68 68 / 0.6);
+}
+.wikilink-trigger {
+  @apply bg-accent/10 rounded;
+}
+
+/* ─── Wikilink autocomplete dropdown ─────────────────────────────────── */
+.wikilink-dropdown {
+  @apply bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.wikilink-dropdown__item {
+  @apply w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-2;
+}
+.wikilink-dropdown__item.is-selected {
+  @apply bg-accent/20 text-white;
+}
+.wikilink-dropdown__item--create {
+  @apply text-zinc-500 italic border-t border-zinc-800;
+}
+
 /* ─── highlight.js token colours (dark theme) ───────────────────────── */
 .hljs-keyword     { @apply text-violet-400; }
 .hljs-built_in    { @apply text-blue-400; }

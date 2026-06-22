@@ -1,11 +1,64 @@
 import { defaultMarkdownParser } from 'prosemirror-markdown';
+import { Fragment } from 'prosemirror-model';
 import type { Node } from 'prosemirror-model';
+import { schema } from '../schema.js';
+import { WIKILINK_REGEX } from '@notes-app/common';
 
 /**
  * Parse a Markdown string into a ProseMirror document node.
- * Uses the default prosemirror-markdown parser which handles
- * standard GFM-like syntax.
+ * After the standard parse, text nodes matching [[Title]] or [[Title||TYPE]]
+ * are replaced with inline wikilink nodes.
  */
 export function fromMarkdown(markdown: string): Node {
-  return defaultMarkdownParser.parse(markdown) as Node;
+  const baseDoc = defaultMarkdownParser.parse(markdown) as Node;
+  const wikilinkType = schema.nodes['wikilink'];
+  if (!wikilinkType) return baseDoc;
+  return injectWikilinks(baseDoc);
+}
+
+function injectWikilinks(node: Node): Node {
+  if (node.isLeaf || node.isAtom) return node;
+
+  const newChildren: Node[] = [];
+  let changed = false;
+
+  node.forEach((child) => {
+    if (child.isText) {
+      const text = child.text ?? '';
+      const wikilinkRe = new RegExp(WIKILINK_REGEX.source, 'g');
+      const parts: Node[] = [];
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = wikilinkRe.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(schema.text(text.slice(lastIndex, match.index), child.marks));
+        }
+        const title = (match[1] ?? '').trim();
+        const rel = match[2] ? match[2].trim() : null;
+        parts.push(
+          schema.nodes['wikilink']!.create({ title, relationshipType: rel, resolved: true })
+        );
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (parts.length > 0) {
+        if (lastIndex < text.length) {
+          parts.push(schema.text(text.slice(lastIndex), child.marks));
+        }
+        newChildren.push(...parts);
+        changed = true;
+        return;
+      }
+    } else {
+      const transformed = injectWikilinks(child);
+      if (transformed !== child) changed = true;
+      newChildren.push(transformed);
+      return;
+    }
+    newChildren.push(child);
+  });
+
+  if (!changed) return node;
+  return node.copy(Fragment.from(newChildren));
 }

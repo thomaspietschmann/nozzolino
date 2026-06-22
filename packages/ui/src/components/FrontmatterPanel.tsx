@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import type { NoteRecord } from '@notes-app/common';
 import { useStore } from '../store.js';
+import { ipc } from '../ipc.js';
 
 interface FrontmatterPanelProps {
   noteId: string;
@@ -7,7 +9,14 @@ interface FrontmatterPanelProps {
 
 export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
   const note = useStore((s) => s.notes.find((n) => n.id === noteId));
+  const { selectNote } = useStore();
+  const [backlinks, setBacklinks] = useState<NoteRecord[]>([]);
   const [newTag, setNewTag] = useState('');
+
+  useEffect(() => {
+    setBacklinks([]);
+    ipc.getBacklinks(noteId).then(setBacklinks).catch(() => setBacklinks([]));
+  }, [noteId]);
 
   if (!note) return null;
 
@@ -25,10 +34,12 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
         </div>
 
         {/* Emoji */}
-        <div>
-          <dt className="text-zinc-500 text-xs mb-1">Emoji</dt>
-          <dd className="text-xl">{note.emoji ?? '—'}</dd>
-        </div>
+        {note.emoji && (
+          <div>
+            <dt className="text-zinc-500 text-xs mb-1">Emoji</dt>
+            <dd className="text-xl">{note.emoji}</dd>
+          </div>
+        )}
 
         {/* Tags */}
         <div>
@@ -59,17 +70,38 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
         {/* Outlinks */}
         {note.outlinks.length > 0 && (
           <div>
-            <dt className="text-zinc-500 text-xs mb-1">Outlinks</dt>
+            <dt className="text-zinc-500 text-xs mb-1">
+              Links to ({note.outlinks.length})
+            </dt>
             <dd className="space-y-1">
               {note.outlinks.map((link, i) => (
-                <div key={i} className="text-xs text-zinc-300">
-                  <span className="text-accent">[[</span>
+                <div key={i} className="text-xs text-accent">
                   {link.targetTitle}
                   {link.relationshipType && (
-                    <span className="text-zinc-500">||{link.relationshipType}</span>
+                    <span className="text-zinc-500 ml-1">({link.relationshipType})</span>
                   )}
-                  <span className="text-accent">]]</span>
                 </div>
+              ))}
+            </dd>
+          </div>
+        )}
+
+        {/* Backlinks */}
+        {backlinks.length > 0 && (
+          <div>
+            <dt className="text-zinc-500 text-xs mb-1">
+              Referenced by ({backlinks.length})
+            </dt>
+            <dd className="space-y-1">
+              {backlinks.map((bl) => (
+                <button
+                  key={bl.id}
+                  onClick={() => void selectNote(bl.id)}
+                  className="block w-full text-left text-xs text-zinc-300 hover:text-white truncate"
+                >
+                  {bl.emoji && <span className="mr-1">{bl.emoji}</span>}
+                  {bl.title}
+                </button>
               ))}
             </dd>
           </div>
