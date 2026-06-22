@@ -11,7 +11,7 @@ function createWindow() {
     backgroundColor: '#09090b', // zinc-950
     titleBarStyle: 'hiddenInset',
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
+      preload: join(import.meta.dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
