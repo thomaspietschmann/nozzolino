@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store.js';
 import type { SyncStatus } from '@notes-app/common';
+import { ipc } from '../ipc.js';
 import { FileTree } from './FileTree.js';
 import { MonthBrowser } from './MonthBrowser.js';
 import { ACCENT_PRESETS } from '@notes-app/common';
@@ -120,6 +121,15 @@ export function Sidebar() {
                 />
               ))}
             </div>
+          </div>
+
+          <div>
+            <button
+              onClick={() => void ipc.exportZip()}
+              className="w-full text-xs py-1.5 rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+            >
+              ↓ Export vault to ZIP…
+            </button>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '../store.js';
 import { getAllTags } from '@notes-app/search';
+import { ipc } from '../ipc.js';
 
 export function CommandPalette() {
   const {
@@ -75,6 +76,14 @@ export function CommandPalette() {
       run: () => {
         close();
         toggleFrontmatterPanel();
+      },
+    },
+    {
+      label: 'Export vault to ZIP…',
+      icon: '↓',
+      run: () => {
+        close();
+        void ipc.exportZip();
       },
     },
   ];
