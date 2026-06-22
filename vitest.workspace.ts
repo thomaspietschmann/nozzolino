@@ -29,4 +29,11 @@ export default defineWorkspace([
       environment: 'node',
     },
   },
+  {
+    test: {
+      name: 'sync',
+      include: ['packages/sync/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
 ]);

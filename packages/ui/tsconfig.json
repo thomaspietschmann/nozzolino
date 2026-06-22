@@ -10,7 +10,8 @@
     { "path": "../common" },
     { "path": "../editor" },
     { "path": "../search" },
-    { "path": "../graph" }
+    { "path": "../graph" },
+    { "path": "../sync" }
   ],
   "include": ["src"]
 }

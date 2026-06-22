@@ -12,6 +12,7 @@ export default defineConfig({
       alias: {
         '@notes-app/common': resolve('../../packages/common/src/index.ts'),
         '@notes-app/vault': resolve('../../packages/vault/src/index.ts'),
+        '@notes-app/sync': resolve('../../packages/sync/src/index.ts'),
       },
     },
     build: {
@@ -42,6 +43,7 @@ export default defineConfig({
         '@notes-app/ui': resolve('../../packages/ui/src/index.ts'),
         '@notes-app/search': resolve('../../packages/search/src/index.ts'),
         '@notes-app/graph': resolve('../../packages/graph/src/index.ts'),
+        '@notes-app/sync': resolve('../../packages/sync/src/index.ts'),
         '@': resolve('../../packages/ui/src'),
       },
     },

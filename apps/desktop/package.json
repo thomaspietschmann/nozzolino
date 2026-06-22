@@ -15,7 +15,8 @@
     "@notes-app/common": "workspace:*",
     "@notes-app/ui": "workspace:*",
     "@notes-app/vault": "workspace:*",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "archiver": "^7.0.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -30,7 +31,8 @@
     "tailwindcss": "^3.4.17",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "@types/archiver": "^6.0.3"
   },
   "build": {
     "appId": "com.notes-app.desktop",
