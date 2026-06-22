@@ -61,51 +61,73 @@ export interface WikilinkSuggestion {
 }
 
 export type GetSuggestions = (query: string) => WikilinkSuggestion[];
+export type GetTypeSuggestions = (query: string) => string[];
+
+/** Two distinct phases of the autocomplete flow. */
+type AutocompleteMode = 'title' | 'type';
 
 interface AutocompleteState {
   active: boolean;
+  mode: AutocompleteMode;
+  /** For title mode: the partial title text; for type mode: the partial rel type. */
   query: string;
+  /** Partial title accumulated before '||' (only set when mode === 'type'). */
+  titleSoFar: string;
   triggerPos: number;
   selectedIndex: number;
 }
 
 const autocompleteKey = new PluginKey<AutocompleteState>('wikilinkAutocomplete');
 
+const INACTIVE_AC: AutocompleteState = {
+  active: false,
+  mode: 'title',
+  query: '',
+  titleSoFar: '',
+  triggerPos: -1,
+  selectedIndex: 0,
+};
+
 function getAutocompleteState(state: EditorState): AutocompleteState {
-  return (
-    autocompleteKey.getState(state) ?? {
-      active: false,
-      query: '',
-      triggerPos: -1,
-      selectedIndex: 0,
-    }
-  );
+  return autocompleteKey.getState(state) ?? INACTIVE_AC;
 }
 
 export function buildWikilinkPlugin(
   getSuggestions: GetSuggestions,
   schema: Schema,
-  onCreateNote?: (title: string) => void
+  onCreateNote?: (title: string) => void,
+  getTypeSuggestions?: GetTypeSuggestions
 ): Plugin<AutocompleteState> {
   return new Plugin<AutocompleteState>({
     key: autocompleteKey,
 
     state: {
       init(): AutocompleteState {
-        return { active: false, query: '', triggerPos: -1, selectedIndex: 0 };
+        return INACTIVE_AC;
       },
       apply(tr: Transaction, prev: AutocompleteState): AutocompleteState {
         const meta = tr.getMeta(autocompleteKey) as AutocompleteState | undefined;
         if (meta !== undefined) return meta;
-        // If selection moved outside trigger range, deactivate
+        // Re-derive state from text when selection moves (e.g. arrow keys).
         if (prev.active && tr.selectionSet) {
           const { $from } = tr.selection;
           const text = $from.parent.textBetween(0, $from.parentOffset, '\n');
-          const match = /\[\[([^\]|]*)$/.exec(text);
-          if (!match) {
-            return { active: false, query: '', triggerPos: -1, selectedIndex: 0 };
+
+          // Check for type mode: [[Title||partialType
+          const typeMatch = /\[\[([^\]|]+)\|\|([^\]]*)$/.exec(text);
+          if (typeMatch) {
+            return {
+              ...prev,
+              mode: 'type',
+              query: typeMatch[2] ?? '',
+              titleSoFar: typeMatch[1] ?? '',
+              selectedIndex: 0,
+            };
           }
-          return { ...prev, query: match[1] ?? '', selectedIndex: 0 };
+          // Check for title mode: [[partialTitle
+          const titleMatch = /\[\[([^\]|]*)$/.exec(text);
+          if (!titleMatch) return INACTIVE_AC;
+          return { ...prev, mode: 'title', query: titleMatch[1] ?? '', selectedIndex: 0 };
         }
         return prev;
       },
@@ -116,6 +138,42 @@ export function buildWikilinkPlugin(
         const state = view.state;
         const { $from } = state.selection;
         const textBefore = $from.parent.textBetween(0, $from.parentOffset, '\n') + text;
+        const current = getAutocompleteState(state);
+
+        // Detect switch to type mode: active title autocomplete + user typed '|'
+        if (current.active && current.mode === 'title' && textBefore.match(/\[\[([^\]|]+)\|$/)) {
+          // Wait for the second '|' before switching (typed text so far ends with one '|')
+          return false;
+        }
+        if (current.active && current.mode === 'title' && textBefore.match(/\[\[([^\]|]+)\|\|$/)) {
+          const titleMatch = /\[\[([^\]|]+)\|\|$/.exec(textBefore);
+          const tr = state.tr.setMeta(autocompleteKey, {
+            ...current,
+            active: true,
+            mode: 'type',
+            query: '',
+            titleSoFar: titleMatch?.[1]?.trim() ?? current.query,
+            selectedIndex: 0,
+          });
+          view.dispatch(tr);
+          return false;
+        }
+
+        // While in type mode, keep updating the query
+        if (current.active && current.mode === 'type') {
+          const typeMatch = /\[\[([^\]|]+)\|\|([^\]]*)$/.exec(textBefore);
+          if (typeMatch) {
+            const tr = state.tr.setMeta(autocompleteKey, {
+              ...current,
+              query: typeMatch[2] ?? '',
+              selectedIndex: 0,
+            });
+            view.dispatch(tr);
+          } else {
+            view.dispatch(state.tr.setMeta(autocompleteKey, INACTIVE_AC));
+          }
+          return false;
+        }
 
         // Detect opening [[
         const triggerMatch = /\[\[([^\]|]*)$/.exec(textBefore);
@@ -123,7 +181,9 @@ export function buildWikilinkPlugin(
           const query = triggerMatch[1] ?? '';
           const tr = state.tr.setMeta(autocompleteKey, {
             active: true,
+            mode: 'title',
             query,
+            titleSoFar: '',
             triggerPos: $from.pos - query.length,
             selectedIndex: 0,
           });
@@ -138,7 +198,9 @@ export function buildWikilinkPlugin(
             // Check if we just closed the wikilink
             const before = $from.parent.textBetween(0, $from.parentOffset, '\n');
             if (before.endsWith(']')) {
-              // Both closing brackets typed — parse and replace with node
+              // Both closing brackets typed — parse and replace with node.
+              // Return true to consume this ']' so ProseMirror does not append
+              // a stray bracket after the wikilink node.
               const fullText = before + ']';
               const match = WIKILINK_REGEX.exec(fullText.slice(fullText.lastIndexOf('[[')));
               if (match) {
@@ -146,6 +208,7 @@ export function buildWikilinkPlugin(
                 const rel = match[2]?.trim() ?? null;
                 if (title) {
                   insertWikilinkNode(view, title, rel, schema, current.triggerPos);
+                  return true;
                 }
               }
             }
@@ -158,7 +221,10 @@ export function buildWikilinkPlugin(
         const ac = getAutocompleteState(view.state);
         if (!ac.active) return false;
 
-        const suggestions = getSuggestions(ac.query);
+        const suggestions =
+          ac.mode === 'type'
+            ? (getTypeSuggestions?.(ac.query) ?? [])
+            : getSuggestions(ac.query).map((s) => s.title);
         if (suggestions.length === 0) return false;
 
         if (event.key === 'ArrowDown') {
@@ -180,21 +246,20 @@ export function buildWikilinkPlugin(
           return true;
         }
         if (event.key === 'Enter' || event.key === 'Tab') {
-          const suggestion = suggestions[ac.selectedIndex];
-          if (suggestion) {
-            insertWikilinkNode(view, suggestion.title, null, schema, ac.triggerPos);
+          const chosen = suggestions[ac.selectedIndex];
+          if (chosen) {
+            if (ac.mode === 'type') {
+              insertWikilinkNode(view, ac.titleSoFar, chosen, schema, ac.triggerPos);
+            } else {
+              const titleSuggestions = getSuggestions(ac.query);
+              const s = titleSuggestions[ac.selectedIndex];
+              if (s) insertWikilinkNode(view, s.title, null, schema, ac.triggerPos);
+            }
           }
           return true;
         }
         if (event.key === 'Escape') {
-          view.dispatch(
-            view.state.tr.setMeta(autocompleteKey, {
-              active: false,
-              query: '',
-              triggerPos: -1,
-              selectedIndex: 0,
-            })
-          );
+          view.dispatch(view.state.tr.setMeta(autocompleteKey, INACTIVE_AC));
           return true;
         }
         return false;
@@ -226,8 +291,12 @@ export function buildWikilinkPlugin(
           return;
         }
 
-        const suggestions = getSuggestions(ac.query);
-        if (suggestions.length === 0 && ac.query.length === 0) {
+        const isTypeMode = ac.mode === 'type';
+        const typeSuggestions = isTypeMode ? (getTypeSuggestions?.(ac.query) ?? []) : [];
+        const titleSuggestions = isTypeMode ? [] : getSuggestions(ac.query);
+
+        const totalSuggestions = isTypeMode ? typeSuggestions.length : titleSuggestions.length;
+        if (totalSuggestions === 0 && ac.query.length === 0 && !(!isTypeMode && onCreateNote)) {
           dropdownEl?.remove();
           dropdownEl = null;
           return;
@@ -247,31 +316,46 @@ export function buildWikilinkPlugin(
         dropdownEl.style.top = `${coords.bottom + 4}px`;
         dropdownEl.style.zIndex = '1000';
 
-        const items = suggestions.map((s, i) => {
-          const el = document.createElement('button');
-          el.className = `wikilink-dropdown__item${i === ac.selectedIndex ? ' is-selected' : ''}`;
-          el.textContent = (s.emoji ? s.emoji + ' ' : '') + s.title;
-          el.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            insertWikilinkNode(editorView, s.title, null, editorView.state.schema, ac.triggerPos);
-          });
-          return el;
-        });
+        let items: HTMLElement[];
 
-        // "Create note" option when query has content and no exact match
-        const exactMatch = suggestions.some(
-          (s) => s.title.toLowerCase() === ac.query.toLowerCase()
-        );
-        if (ac.query && !exactMatch && onCreateNote) {
-          const el = document.createElement('button');
-          el.className = 'wikilink-dropdown__item wikilink-dropdown__item--create';
-          el.textContent = `Create "${ac.query}"`;
-          el.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            onCreateNote(ac.query);
-            insertWikilinkNode(editorView, ac.query, null, editorView.state.schema, ac.triggerPos);
+        if (isTypeMode) {
+          items = typeSuggestions.map((t, i) => {
+            const el = document.createElement('button');
+            el.className = `wikilink-dropdown__item${i === ac.selectedIndex ? ' is-selected' : ''}`;
+            el.textContent = t;
+            el.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              insertWikilinkNode(editorView, ac.titleSoFar, t, editorView.state.schema, ac.triggerPos);
+            });
+            return el;
           });
-          items.push(el);
+        } else {
+          items = titleSuggestions.map((s, i) => {
+            const el = document.createElement('button');
+            el.className = `wikilink-dropdown__item${i === ac.selectedIndex ? ' is-selected' : ''}`;
+            el.textContent = (s.emoji ? s.emoji + ' ' : '') + s.title;
+            el.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              insertWikilinkNode(editorView, s.title, null, editorView.state.schema, ac.triggerPos);
+            });
+            return el;
+          });
+
+          // "Create note" option when query has content and no exact match
+          const exactMatch = titleSuggestions.some(
+            (s) => s.title.toLowerCase() === ac.query.toLowerCase()
+          );
+          if (ac.query && !exactMatch && onCreateNote) {
+            const el = document.createElement('button');
+            el.className = 'wikilink-dropdown__item wikilink-dropdown__item--create';
+            el.textContent = `Create "${ac.query}"`;
+            el.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              onCreateNote(ac.query);
+              insertWikilinkNode(editorView, ac.query, null, editorView.state.schema, ac.triggerPos);
+            });
+            items.push(el);
+          }
         }
 
         dropdownEl.replaceChildren(...items);
@@ -294,13 +378,20 @@ function insertWikilinkNode(
   title: string,
   relationshipType: string | null,
   schema: Schema,
-  triggerPos: number
+  _triggerPos: number
 ): void {
   const { state } = view;
   const { $from } = state.selection;
 
-  // Delete from [[ back to current position
-  const from = triggerPos;
+  // Recompute the delete range at insert time by scanning back to the last '[[' in
+  // the current text. This is more robust than trusting the stored triggerPos, which
+  // points after the '[[' brackets (off-by-two bug when typed via handleTextInput).
+  const textBefore = $from.parent.textBetween(0, $from.parentOffset, '\n');
+  const bracketIdx = textBefore.lastIndexOf('[[');
+  const from =
+    bracketIdx === -1
+      ? $from.pos - $from.parentOffset // fallback: start of block
+      : $from.pos - ($from.parentOffset - bracketIdx);
   const to = $from.pos;
 
   const wikilinkType = schema.nodes['wikilink'];
@@ -323,7 +414,8 @@ function insertWikilinkNode(
 // ─── Unresolved link decoration plugin ───────────────────────────────────────
 
 export function buildWikilinkValidationPlugin(
-  isResolved: (title: string) => boolean
+  isResolved: (title: string) => boolean,
+  onCreateNote?: (title: string) => void
 ): Plugin<DecorationSet> {
   const key = new PluginKey<DecorationSet>('wikilinkValidation');
 
@@ -341,6 +433,17 @@ export function buildWikilinkValidationPlugin(
     props: {
       decorations(state) {
         return key.getState(state) ?? DecorationSet.empty;
+      },
+      // Click on an unresolved wikilink → create the target note.
+      handleClickOn(_view, _pos, node, _nodePos, _event, _direct) {
+        if (node.type.name !== 'wikilink') return false;
+        const title = (node.attrs as { title: string; resolved: boolean }).title;
+        const resolved = (node.attrs as { resolved: boolean }).resolved;
+        if (!resolved && onCreateNote) {
+          onCreateNote(title);
+          return true;
+        }
+        return false;
       },
     },
   });
