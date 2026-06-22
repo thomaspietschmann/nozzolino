@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store.js';
 
 interface NoteHeaderProps {
@@ -7,7 +7,7 @@ interface NoteHeaderProps {
 
 export function NoteHeader({ noteId }: NoteHeaderProps) {
   const note = useStore((s) => s.notes.find((n) => n.id === noteId));
-  const { renameNote, isDirty } = useStore();
+  const { renameNote, isDirty, graphOpen, toggleGraph } = useStore();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(note?.title ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +61,17 @@ export function NoteHeader({ noteId }: NoteHeaderProps) {
       {isDirty && (
         <span className="text-xs text-zinc-500 shrink-0">unsaved</span>
       )}
+      <button
+        title={graphOpen ? 'Show editor (Ctrl+G)' : 'Show graph (Ctrl+G)'}
+        onClick={() => toggleGraph()}
+        className={`p-1.5 rounded transition-colors text-sm leading-none shrink-0 ${
+          graphOpen
+            ? 'bg-accent/20 text-white border border-accent'
+            : 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+        }`}
+      >
+        ⬡
+      </button>
     </div>
   );
 }

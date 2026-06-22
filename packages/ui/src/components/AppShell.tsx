@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useStore } from '../store.js';
 import { Sidebar } from './Sidebar.js';
 import { NoteHeader } from './NoteHeader.js';
 import { NoteEditor } from './NoteEditor.js';
 import { FrontmatterPanel } from './FrontmatterPanel.js';
+import { GraphView } from './GraphView.js';
 import { WikilinkPeek } from './WikilinkPeek.js';
 import { CommandPalette } from './CommandPalette.js';
 import { ipc } from '../ipc.js';
@@ -13,10 +14,12 @@ export function AppShell() {
     activeNoteId,
     activeNoteContent,
     showFrontmatterPanel,
+    graphOpen,
     upsertNoteRecord,
     removeNoteRecord,
     toggleSearch,
     setSearchOpen,
+    toggleGraph,
   } = useStore();
 
   // Subscribe to file watcher events from main process
@@ -39,12 +42,16 @@ export function AppShell() {
     };
   }, [upsertNoteRecord, removeNoteRecord]);
 
-  // Global Ctrl+K / Cmd+K shortcut to open command palette
+  // Global keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         toggleSearch();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+        e.preventDefault();
+        toggleGraph();
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
@@ -52,7 +59,7 @@ export function AppShell() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [toggleSearch, setSearchOpen]);
+  }, [toggleSearch, setSearchOpen, toggleGraph]);
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
@@ -64,12 +71,16 @@ export function AppShell() {
         {activeNoteId && activeNoteContent !== null ? (
           <>
             <NoteHeader noteId={activeNoteId} />
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto">
-                <NoteEditor content={activeNoteContent} noteId={activeNoteId} />
+            {graphOpen ? (
+              <GraphView />
+            ) : (
+              <div className="flex flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
+                  <NoteEditor content={activeNoteContent} noteId={activeNoteId} />
+                </div>
+                {showFrontmatterPanel && <FrontmatterPanel noteId={activeNoteId} />}
               </div>
-              {showFrontmatterPanel && <FrontmatterPanel noteId={activeNoteId} />}
-            </div>
+            )}
           </>
         ) : (
           <EmptyState />
