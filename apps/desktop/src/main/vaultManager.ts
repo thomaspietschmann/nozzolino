@@ -13,6 +13,10 @@ let currentVaultRoot: string | null = null;
 let vaultIndex: VaultIndex | null = null;
 let watcher: VaultWatcher | null = null;
 
+// Pending unlinks: id → { title, relativePath, timer } — used to correlate rename pairs
+const pendingUnlinks = new Map<string, { title: string; relativePath: string; timer: ReturnType<typeof setTimeout> }>();
+const RENAME_WINDOW_MS = 2000;
+
 export function getVaultRoot() {
   return currentVaultRoot;
 }
@@ -35,8 +39,22 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
 
     if (event === 'unlink') {
       if (isConflictFile(name)) {
-        // Conflict copy was deleted (resolved or cleaned up by Syncthing)
         win.webContents.send(IPC.VAULT_CONFLICT_REMOVED, relativePath);
+        return;
+      }
+
+      // Hold for RENAME_WINDOW_MS before treating as a true delete.
+      // If an 'add' with the same id arrives within the window, it's an external rename.
+      const existingRecord = vaultIndex.getNoteByPath(relativePath);
+      if (existingRecord) {
+        const id = existingRecord.id;
+        const timer = setTimeout(() => {
+          // Window expired — treat as genuine delete
+          pendingUnlinks.delete(id);
+          vaultIndex?.removeByPath(relativePath);
+          win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath });
+        }, RENAME_WINDOW_MS);
+        pendingUnlinks.set(id, { title: existingRecord.title, relativePath, timer });
       } else {
         vaultIndex.removeByPath(relativePath);
         win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath });
@@ -45,7 +63,6 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
     }
 
     if (isConflictFile(name)) {
-      // Conflict copy detected — send it to the renderer without indexing it
       const conflictRecord = buildConflictRecord(relativePath, absolutePath, vaultIndex, vaultPath);
       win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, conflictRecord);
       return;
@@ -53,7 +70,22 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
 
     try {
       const record = await vaultIndex.addOrRefresh(absolutePath);
-      win.webContents.send(IPC.VAULT_FILE_CHANGED, { event, relativePath, record });
+      const pending = pendingUnlinks.get(record.id);
+      if (pending) {
+        // Matched an earlier unlink — this is an external rename
+        clearTimeout(pending.timer);
+        pendingUnlinks.delete(record.id);
+        vaultIndex.removeByPath(pending.relativePath);
+        // Rewrite wikilinks in all notes that reference the old title
+        const propagated = await propagateRename(pending.title, record.title);
+        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath: pending.relativePath });
+        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'add', relativePath, record });
+        for (const updated of propagated) {
+          win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'change', relativePath: updated.path, record: updated });
+        }
+      } else {
+        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event, relativePath, record });
+      }
     } catch {
       // File may have been deleted immediately after event
     }
@@ -211,6 +243,8 @@ export async function saveImage(
 }
 
 export async function closeVault() {
+  for (const { timer } of pendingUnlinks.values()) clearTimeout(timer);
+  pendingUnlinks.clear();
   await watcher?.close();
   watcher = null;
   vaultIndex = null;
