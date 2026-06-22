@@ -8,4 +8,11 @@ export default defineWorkspace([
       environment: 'node',
     },
   },
+  {
+    test: {
+      name: 'vault',
+      include: ['packages/vault/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
 ]);

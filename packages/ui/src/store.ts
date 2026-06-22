@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { NoteRecord, AccentPresetKey, SyncStatus } from '@notes-app/common';
-import { ACCENT_PRESETS } from '@notes-app/common';
+import { ACCENT_PRESETS, parseFrontmatter } from '@notes-app/common';
 import { ipc } from './ipc.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -9,6 +9,8 @@ export interface AppState {
   // Vault
   vaultRoot: string | null;
   notes: NoteRecord[];
+  /** Distinct relationship types used across the vault — for autocomplete. */
+  relationshipTypes: string[];
   activeNoteId: string | null;
   activeNoteContent: string | null;
   isDirty: boolean;
@@ -33,6 +35,7 @@ export interface AppState {
   setSidebarOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setAccent: (accent: AccentPresetKey) => void;
+  setTags: (noteId: string, tags: string[]) => Promise<void>;
   toggleFrontmatterPanel: () => void;
   upsertNoteRecord: (record: NoteRecord) => void;
   removeNoteRecord: (relativePath: string) => void;
@@ -46,6 +49,7 @@ const savedAccent = (localStorage.getItem('accent') as AccentPresetKey | null) ?
 export const useStore = create<AppState>((set, get) => ({
   vaultRoot: null,
   notes: [],
+  relationshipTypes: [],
   activeNoteId: null,
   activeNoteContent: null,
   isDirty: false,
@@ -57,7 +61,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   async openVault(path: string) {
     const records = await ipc.openVault(path);
-    set({ vaultRoot: path, notes: records, activeNoteId: null, activeNoteContent: null });
+    const relTypes = await ipc.getRelationshipTypes();
+    set({ vaultRoot: path, notes: records, relationshipTypes: relTypes, activeNoteId: null, activeNoteContent: null });
   },
 
   async selectNote(id: string) {
@@ -71,8 +76,11 @@ export const useStore = create<AppState>((set, get) => ({
     const note = notes.find((n) => n.id === id);
     if (!note) return;
 
-    const content = await ipc.readFile(note.path);
-    set({ activeNoteId: id, activeNoteContent: content, isDirty: false });
+    // Store only the body — the editor must never see the YAML frontmatter block,
+    // because prosemirror-markdown has no YAML awareness and would mangle it on save.
+    const raw = await ipc.readFile(note.path);
+    const { body } = parseFrontmatter(raw);
+    set({ activeNoteId: id, activeNoteContent: body, isDirty: false });
   },
 
   async saveNote(content: string) {
@@ -86,7 +94,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   async createNote(title: string) {
     const record = await ipc.createFile(title);
-    set((s) => ({ notes: [...s.notes, record], activeNoteId: record.id, activeNoteContent: '', isDirty: false }));
+    // Read body only — same contract as selectNote.
+    const raw = await ipc.readFile(record.path);
+    const { body } = parseFrontmatter(raw);
+    set((s) => ({ notes: [...s.notes, record], activeNoteId: record.id, activeNoteContent: body, isDirty: false }));
   },
 
   async renameNote(id: string, newTitle: string) {
@@ -94,10 +105,17 @@ export const useStore = create<AppState>((set, get) => ({
     const note = notes.find((n) => n.id === id);
     if (!note) return;
 
-    const updated = await ipc.renameFile(note.path, newTitle);
-    set((s) => ({
-      notes: s.notes.map((n) => (n.id === id ? updated : n)),
-    }));
+    const { renamed, propagated } = await ipc.renameFile(note.path, newTitle);
+    set((s) => {
+      // Build a map of path → updated record for the propagated notes.
+      const propagatedByPath = new Map(propagated.map((r) => [r.path, r]));
+      return {
+        notes: s.notes.map((n) => {
+          if (n.id === id) return renamed;
+          return propagatedByPath.get(n.path) ?? n;
+        }),
+      };
+    });
   },
 
   async deleteNote(id: string) {
@@ -130,6 +148,14 @@ export const useStore = create<AppState>((set, get) => ({
   setAccent(accent: AccentPresetKey) {
     localStorage.setItem('accent', accent);
     set({ accent });
+  },
+
+  async setTags(noteId: string, tags: string[]) {
+    const { notes } = get();
+    const note = notes.find((n) => n.id === noteId);
+    if (!note) return;
+    const updated = await ipc.updateFrontmatter(note.path, { tags });
+    get().upsertNoteRecord(updated);
   },
 
   toggleFrontmatterPanel() {

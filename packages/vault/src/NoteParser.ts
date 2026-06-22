@@ -39,6 +39,7 @@ export function parseNoteContent(
     emoji: frontmatter.emoji ?? null,
     tags: frontmatter.tags,
     outlinks: parseWikiLinks(body),
+    created: frontmatter.created ? new Date(frontmatter.created) : undefined,
     modified: mtime,
     bodyText: body,
   };

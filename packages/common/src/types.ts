@@ -47,6 +47,8 @@ export interface NoteRecord {
   tags: string[];
   /** Parsed outgoing wiki-links. */
   outlinks: Outlink[];
+  /** Creation date from frontmatter (set on first app save). */
+  created?: Date;
   /** Last-modified date from frontmatter or file system mtime. */
   modified: Date;
   /** Full plain text of the body, Markdown syntax stripped, for search indexing. */
