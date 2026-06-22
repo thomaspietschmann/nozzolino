@@ -1,5 +1,6 @@
-import { join } from 'path';
+import { join, basename } from 'path';
 import type { NoteRecord } from '@notes-app/common';
+import { SYNCTHING_CONFLICT_INFIX } from '@notes-app/common';
 import { scanVault } from './VaultScanner.js';
 import { parseNote } from './NoteParser.js';
 
@@ -100,6 +101,10 @@ export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
     },
 
     async addOrRefresh(absolutePath: string): Promise<NoteRecord> {
+      // Conflict copies must never enter the note index
+      if (basename(absolutePath).includes(SYNCTHING_CONFLICT_INFIX)) {
+        throw new Error(`Refusing to index conflict file: ${absolutePath}`);
+      }
       const record = await parseNote(absolutePath, vaultRoot);
       const existing = byPath.get(record.path);
       if (existing && existing.id !== record.id) {
