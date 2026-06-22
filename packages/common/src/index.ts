@@ -1,0 +1,26 @@
+export type {
+  Frontmatter,
+  Outlink,
+  NoteRecord,
+  SyncStatus,
+  ConflictRecord,
+  VaultConfig,
+  SearchResult,
+} from './types.js';
+
+export {
+  FRONTMATTER_FIELDS,
+  SYNTAX_HIGHLIGHT_LANGUAGES,
+  ACCENT_PRESETS,
+  IPC,
+  SYNCTHING_CONFLICT_INFIX,
+  AUTOSAVE_DEBOUNCE_MS,
+  SEARCH_DEBOUNCE_MS,
+  SEARCH_SNIPPET_LENGTH,
+} from './constants.js';
+
+export type { SyntaxHighlightLanguage, AccentPresetKey, IpcChannel } from './constants.js';
+
+export { parseFrontmatter, serializeFrontmatter } from './frontmatter.js';
+
+export { WIKILINK_REGEX, parseWikiLinks, replaceWikiLinkTarget } from './wikilinks.js';
