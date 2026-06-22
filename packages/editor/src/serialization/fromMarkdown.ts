@@ -1,8 +1,18 @@
-import { defaultMarkdownParser } from 'prosemirror-markdown';
+import { MarkdownParser, defaultMarkdownParser } from 'prosemirror-markdown';
 import { Fragment } from 'prosemirror-model';
 import type { Node } from 'prosemirror-model';
 import { schema } from '../schema.js';
 import { WIKILINK_REGEX } from '@notes-app/common';
+
+// prosemirror-state v1.4.4 derives state.schema from doc.type.schema rather
+// than from the separate `schema` option passed to EditorState.create. Using
+// a parser backed by our custom schema ensures the resulting doc carries the
+// right schema and prosemirror-tables plugins can resolve their node types.
+const markdownParser = new MarkdownParser(
+  schema,
+  defaultMarkdownParser.tokenizer,
+  defaultMarkdownParser.tokens,
+);
 
 /**
  * Parse a Markdown string into a ProseMirror document node.
@@ -10,7 +20,7 @@ import { WIKILINK_REGEX } from '@notes-app/common';
  * are replaced with inline wikilink nodes.
  */
 export function fromMarkdown(markdown: string): Node {
-  const baseDoc = defaultMarkdownParser.parse(markdown) as Node;
+  const baseDoc = markdownParser.parse(markdown) as Node;
   const wikilinkType = schema.nodes['wikilink'];
   if (!wikilinkType) return baseDoc;
   return injectWikilinks(baseDoc);
