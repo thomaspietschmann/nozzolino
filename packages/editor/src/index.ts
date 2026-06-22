@@ -6,5 +6,6 @@ export { toMarkdown } from './serialization/toMarkdown.js';
 export type { SaveImageFn } from './plugins/imagePaste.js';
 export type { GetSuggestions, WikilinkSuggestion } from './plugins/wikilink.js';
 
-// Re-export ProseMirror view so ui package doesn't need a direct dep
+// Re-export ProseMirror primitives so ui package doesn't need a direct dep
 export { EditorView } from 'prosemirror-view';
+export { TextSelection } from 'prosemirror-state';
