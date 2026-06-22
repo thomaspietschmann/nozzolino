@@ -31,16 +31,20 @@ export function Sidebar() {
 
   return (
     <aside className="w-60 shrink-0 flex flex-col bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 select-none">
-      {/* Header — on macOS left-pad past the traffic-light buttons */}
-      <div
-        className={`flex items-center justify-between py-3 border-b border-zinc-200 dark:border-zinc-800 ${isMacOS ? 'pl-[80px] pr-3' : 'px-3'}`}
-        style={isMacOS ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
-      >
-        <div className="flex items-center gap-2 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* macOS: thin drag strip at the top — gives traffic lights a clean home */}
+      {isMacOS && (
+        <div
+          className="h-8 shrink-0 border-b border-zinc-200 dark:border-zinc-800"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+      )}
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center gap-2 min-w-0">
           <SyncDot status={syncStatus} onClick={toggleConflictsPanel} />
           <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm truncate">{vaultName}</span>
         </div>
-        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="flex items-center gap-1">
           <button
             title="New note"
             onClick={() => setShowNewNote((v) => !v)}
