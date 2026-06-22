@@ -37,7 +37,7 @@ export interface NoteRecord {
    * through the app for the first time (ADR-0006).
    */
   id: string;
-  /** Absolute path to the .md file on disk. */
+  /** Vault-relative path (POSIX, may include subdirectory segments, e.g. "projects/foo.md"). */
   path: string;
   /** Note title (filename stem without .md extension). */
   title: string;
