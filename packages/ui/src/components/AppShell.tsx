@@ -5,6 +5,7 @@ import { NoteHeader } from './NoteHeader.js';
 import { NoteEditor } from './NoteEditor.js';
 import { FrontmatterPanel } from './FrontmatterPanel.js';
 import { WikilinkPeek } from './WikilinkPeek.js';
+import { CommandPalette } from './CommandPalette.js';
 import { ipc } from '../ipc.js';
 
 export function AppShell() {
@@ -14,6 +15,8 @@ export function AppShell() {
     showFrontmatterPanel,
     upsertNoteRecord,
     removeNoteRecord,
+    toggleSearch,
+    setSearchOpen,
   } = useStore();
 
   // Subscribe to file watcher events from main process
@@ -36,9 +39,25 @@ export function AppShell() {
     };
   }, [upsertNoteRecord, removeNoteRecord]);
 
+  // Global Ctrl+K / Cmd+K shortcut to open command palette
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        toggleSearch();
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [toggleSearch, setSearchOpen]);
+
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
       <WikilinkPeek />
+      <CommandPalette />
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
