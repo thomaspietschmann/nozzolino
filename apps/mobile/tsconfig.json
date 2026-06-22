@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@notes-app/common": ["../../packages/common/src/index.ts"],
+      "@notes-app/editor": ["../../packages/editor/src/index.ts"],
+      "@notes-app/ui/styles": ["../../packages/ui/src/styles.css"],
+      "@notes-app/ui": ["../../packages/ui/src/index.ts"],
+      "@notes-app/search": ["../../packages/search/src/index.ts"],
+      "@notes-app/graph": ["../../packages/graph/src/index.ts"],
+      "@notes-app/sync": ["../../packages/sync/src/index.ts"],
+      "@notes-app/vault": ["../../packages/vault/src/index.ts"],
+      "@/*": ["../../packages/ui/src/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "../../packages/ui/src/electron.d.ts",
+    "../../packages/ui/src/cytoscape-fcose.d.ts"
+  ]
+}

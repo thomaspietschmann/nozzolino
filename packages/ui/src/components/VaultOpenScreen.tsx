@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store.js';
 import { ipc } from '../ipc.js';
 import type { RecentVault } from '../ipc.js';

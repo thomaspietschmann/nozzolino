@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { NoteRecord } from '@notes-app/common';
 import { useStore } from '../store.js';
 

@@ -2,6 +2,7 @@
   "name": "@notes-app/vault",
   "version": "0.0.1",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",

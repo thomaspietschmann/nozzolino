@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { EditorView, TextSelection, createEditorState, toMarkdown } from '@notes-app/editor';
 import type { CreateEditorStateOptions, SaveImageFn } from '@notes-app/editor';
 import { AUTOSAVE_DEBOUNCE_MS } from '@notes-app/common';

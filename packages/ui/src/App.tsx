@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { ACCENT_PRESETS } from '@notes-app/common';
 import { useStore } from './store.js';
 import { VaultOpenScreen } from './components/VaultOpenScreen.js';

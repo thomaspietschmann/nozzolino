@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStore } from '../store.js';
 import { SHORTCUT_GROUPS, MOD } from '../help/shortcuts.js';
 

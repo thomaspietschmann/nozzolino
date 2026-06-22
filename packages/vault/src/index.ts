@@ -1,4 +1,5 @@
 export * from './VaultFS.js';
+export * from './NodeVaultFS.js';
 export * from './VaultScanner.js';
 export * from './NoteParser.js';
 export * from './VaultIndex.js';
