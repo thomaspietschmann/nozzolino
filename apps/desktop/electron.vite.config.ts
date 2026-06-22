@@ -41,6 +41,7 @@ export default defineConfig({
         '@notes-app/ui/styles': resolve('../../packages/ui/src/styles.css'),
         '@notes-app/ui': resolve('../../packages/ui/src/index.ts'),
         '@notes-app/search': resolve('../../packages/search/src/index.ts'),
+        '@notes-app/graph': resolve('../../packages/graph/src/index.ts'),
         '@': resolve('../../packages/ui/src'),
       },
     },

@@ -22,4 +22,11 @@ export default defineWorkspace([
       environment: 'node',
     },
   },
+  {
+    test: {
+      name: 'graph',
+      include: ['packages/graph/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
 ]);

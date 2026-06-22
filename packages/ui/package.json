@@ -18,7 +18,10 @@
     "@notes-app/common": "workspace:*",
     "@notes-app/editor": "workspace:*",
     "@notes-app/vault": "workspace:*",
+    "@notes-app/graph": "workspace:*",
     "@notes-app/search": "workspace:*",
+    "cytoscape": "^3.30.2",
+    "cytoscape-fcose": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.3"

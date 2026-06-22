@@ -9,7 +9,8 @@
   "references": [
     { "path": "../common" },
     { "path": "../editor" },
-    { "path": "../search" }
+    { "path": "../search" },
+    { "path": "../graph" }
   ],
   "include": ["src"]
 }

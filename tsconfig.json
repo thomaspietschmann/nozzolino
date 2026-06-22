@@ -4,6 +4,7 @@
     { "path": "./packages/common" },
     { "path": "./packages/vault" },
     { "path": "./packages/editor" },
-    { "path": "./packages/search" }
+    { "path": "./packages/search" },
+    { "path": "./packages/graph" }
   ]
 }
