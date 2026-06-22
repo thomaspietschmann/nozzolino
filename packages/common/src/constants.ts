@@ -49,9 +49,13 @@ export const IPC = {
   // Vault
   VAULT_OPEN: 'vault:open',
   VAULT_GET_CONFIG: 'vault:getConfig',
+  VAULT_GET_NOTES: 'vault:getNotes',
+  VAULT_GET_RECENT: 'vault:getRecent',
+  VAULT_ADD_RECENT: 'vault:addRecent',
   // File operations
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
+  FILE_CREATE: 'file:create',
   FILE_RENAME: 'file:rename',
   FILE_DELETE: 'file:delete',
   FILE_LIST: 'file:list',
@@ -61,6 +65,8 @@ export const IPC = {
   FOLDER_DELETE: 'folder:delete',
   // Dialogs
   DIALOG_OPEN_FOLDER: 'dialog:openFolder',
+  // Image
+  IMAGE_SAVE: 'image:save',
   // Watcher events (main → renderer)
   VAULT_FILE_CHANGED: 'vault:fileChanged',
   VAULT_FILE_DELETED: 'vault:fileDeleted',
