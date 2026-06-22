@@ -13,7 +13,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { saveNote, setDirty, notes, createNote, relationshipTypes } = useStore();
+  const { saveNote, setDirty, notes, createNote, relationshipTypes, registerEditorFlush } = useStore();
 
   const handleSave = useCallback(
     (markdown: string) => {
@@ -40,6 +40,25 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     },
     [notes, noteId]
   );
+
+  // Register an imperative flush handle so store.setTags can ensure the disk
+  // body is up to date before patching frontmatter (V1 fix).
+  useEffect(() => {
+    const flush = async () => {
+      const view = viewRef.current;
+      if (!view) return;
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const markdown = toMarkdown(view.state.doc);
+      await saveNote(markdown);
+    };
+    registerEditorFlush(flush);
+    return () => {
+      registerEditorFlush(null);
+    };
+  }, [saveNote, registerEditorFlush]);
 
   // Create or destroy the view when the note changes
   useEffect(() => {

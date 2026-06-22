@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { NoteRecord, AccentPresetKey, SyncStatus } from '@notes-app/common';
-import { ACCENT_PRESETS, parseFrontmatter } from '@notes-app/common';
+import { ACCENT_PRESETS, SEARCH_DEBOUNCE_MS, parseFrontmatter } from '@notes-app/common';
+import { buildIndex, search, filterByTags } from '@notes-app/search';
+import type { SearchIndex } from '@notes-app/search';
+import type { SearchResult } from '@notes-app/common';
 import { ipc } from './ipc.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,10 +24,20 @@ export interface AppState {
   accent: AccentPresetKey;
   showFrontmatterPanel: boolean;
 
+  // Search / palette
+  searchOpen: boolean;
+  searchQuery: string;
+  selectedTags: string[];
+  /**
+   * After navigating to a note via search, this holds the query term so
+   * NoteEditor can scroll to the first match after remounting.
+   */
+  pendingScrollTerm: string | null;
+
   // Sync
   syncStatus: SyncStatus;
 
-  // Actions
+  // Actions — vault / notes
   openVault: (path: string) => Promise<void>;
   selectNote: (id: string) => Promise<void>;
   saveNote: (content: string) => Promise<void>;
@@ -39,7 +52,29 @@ export interface AppState {
   toggleFrontmatterPanel: () => void;
   upsertNoteRecord: (record: NoteRecord) => void;
   removeNoteRecord: (relativePath: string) => void;
+
+  // Actions — search / palette
+  toggleSearch: () => void;
+  setSearchOpen: (open: boolean) => void;
+  setSearchQuery: (query: string) => void;
+  toggleSelectedTag: (tag: string) => void;
+  clearSearch: () => void;
+  setPendingScrollTerm: (term: string | null) => void;
+  /** Run a search against the current index. Returns [] when index is not ready. */
+  runSearch: (query: string) => SearchResult[];
+  /** Return notes matching the selected tag filter (AND logic). */
+  getTagFilteredNotes: () => NoteRecord[];
+
+  // Imperative handle — registered by NoteEditor so setTags can flush before write
+  registerEditorFlush: (fn: (() => Promise<void>) | null) => void;
 }
+
+// ─── Module-level search index singleton (not in Zustand — not serializable) ──
+
+let searchIdx: SearchIndex | null = null;
+let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+/** Imperative flush registered by NoteEditor. */
+let editorFlush: (() => Promise<void>) | null = null;
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
@@ -59,10 +94,26 @@ export const useStore = create<AppState>((set, get) => ({
   showFrontmatterPanel: false,
   syncStatus: 'synced',
 
+  // Search / palette initial state
+  searchOpen: false,
+  searchQuery: '',
+  selectedTags: [],
+  pendingScrollTerm: null,
+
   async openVault(path: string) {
     const records = await ipc.openVault(path);
     const relTypes = await ipc.getRelationshipTypes();
-    set({ vaultRoot: path, notes: records, relationshipTypes: relTypes, activeNoteId: null, activeNoteContent: null });
+    // Build the search index immediately on vault open
+    searchIdx = buildIndex(records);
+    set({
+      vaultRoot: path,
+      notes: records,
+      relationshipTypes: relTypes,
+      activeNoteId: null,
+      activeNoteContent: null,
+      searchQuery: '',
+      selectedTags: [],
+    });
   },
 
   async selectNote(id: string) {
@@ -154,6 +205,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { notes } = get();
     const note = notes.find((n) => n.id === noteId);
     if (!note) return;
+
+    // V1 fix: flush the editor's pending autosave first so the disk body is up
+    // to date before updateFrontmatter reads it back.
+    if (editorFlush) await editorFlush();
+
     const updated = await ipc.updateFrontmatter(note.path, { tags });
     get().upsertNoteRecord(updated);
   },
@@ -178,9 +234,72 @@ export const useStore = create<AppState>((set, get) => ({
       notes: s.notes.filter((n) => n.path !== relativePath),
     }));
   },
+
+  // ─── Search / palette ───────────────────────────────────────────────────────
+
+  toggleSearch() {
+    set((s) => ({ searchOpen: !s.searchOpen, searchQuery: s.searchOpen ? '' : s.searchQuery }));
+  },
+
+  setSearchOpen(open: boolean) {
+    set({ searchOpen: open });
+    if (!open) set({ searchQuery: '' });
+  },
+
+  setSearchQuery(query: string) {
+    set({ searchQuery: query });
+  },
+
+  toggleSelectedTag(tag: string) {
+    set((s) => ({
+      selectedTags: s.selectedTags.includes(tag)
+        ? s.selectedTags.filter((t) => t !== tag)
+        : [...s.selectedTags, tag],
+    }));
+  },
+
+  clearSearch() {
+    set({ searchOpen: false, searchQuery: '', selectedTags: [] });
+  },
+
+  setPendingScrollTerm(term: string | null) {
+    set({ pendingScrollTerm: term });
+  },
+
+  runSearch(query: string): SearchResult[] {
+    if (!searchIdx) return [];
+    const { notes, selectedTags } = get();
+    const results = search(searchIdx, query);
+    if (selectedTags.length === 0) return results;
+    // Intersect with tag filter
+    const tagMatchIds = new Set(filterByTags(notes, selectedTags).map((n) => n.id));
+    return results.filter((r) => tagMatchIds.has(r.noteId));
+  },
+
+  getTagFilteredNotes(): NoteRecord[] {
+    const { notes, selectedTags } = get();
+    return filterByTags(notes, selectedTags);
+  },
+
+  // ─── Imperative handle ─────────────────────────────────────────────────────
+
+  registerEditorFlush(fn: (() => Promise<void>) | null) {
+    editorFlush = fn;
+  },
 }));
 
-// Apply accent CSS variable on store changes
+// ─── Search index rebuild — subscribe to notes changes ─────────────────────────
+
+useStore.subscribe((state, prev) => {
+  if (state.notes === prev.notes) return;
+  if (rebuildTimer) clearTimeout(rebuildTimer);
+  rebuildTimer = setTimeout(() => {
+    searchIdx = buildIndex(state.notes);
+  }, SEARCH_DEBOUNCE_MS);
+});
+
+// ─── Apply accent CSS variable + theme class on store changes ──────────────────
+
 useStore.subscribe((state) => {
   const preset = ACCENT_PRESETS.find((p) => p.key === state.accent);
   if (preset) {
