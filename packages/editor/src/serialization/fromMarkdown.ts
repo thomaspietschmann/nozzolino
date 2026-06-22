@@ -18,12 +18,19 @@ export function fromMarkdown(markdown: string): Node {
 
 function injectWikilinks(node: Node): Node {
   if (node.isLeaf || node.isAtom) return node;
+  // Never convert [[…]] inside fenced code blocks or inline code spans.
+  if (node.type.name === 'code_block') return node;
 
   const newChildren: Node[] = [];
   let changed = false;
 
   node.forEach((child) => {
     if (child.isText) {
+      // Skip text that is styled as inline code.
+      if (child.marks.some((m) => m.type.name === 'code')) {
+        newChildren.push(child);
+        return;
+      }
       const text = child.text ?? '';
       const wikilinkRe = new RegExp(WIKILINK_REGEX.source, 'g');
       const parts: Node[] = [];
