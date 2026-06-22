@@ -53,6 +53,7 @@ export const IPC = {
   VAULT_GET_RECENT: 'vault:getRecent',
   VAULT_ADD_RECENT: 'vault:addRecent',
   VAULT_GET_BACKLINKS: 'vault:getBacklinks',
+  VAULT_GET_RELATIONSHIP_TYPES: 'vault:getRelationshipTypes',
   // File operations
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
@@ -60,6 +61,7 @@ export const IPC = {
   FILE_RENAME: 'file:rename',
   FILE_DELETE: 'file:delete',
   FILE_LIST: 'file:list',
+  FILE_UPDATE_FRONTMATTER: 'file:updateFrontmatter',
   // Folder operations
   FOLDER_CREATE: 'folder:create',
   FOLDER_RENAME: 'folder:rename',

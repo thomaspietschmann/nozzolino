@@ -9,7 +9,7 @@ interface FrontmatterPanelProps {
 
 export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
   const note = useStore((s) => s.notes.find((n) => n.id === noteId));
-  const { selectNote } = useStore();
+  const { selectNote, setTags } = useStore();
   const [backlinks, setBacklinks] = useState<NoteRecord[]>([]);
   const [newTag, setNewTag] = useState('');
 
@@ -19,6 +19,26 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
   }, [noteId]);
 
   if (!note) return null;
+
+  function handleAddTag(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return;
+    const tag = newTag.trim();
+    if (!tag || note!.tags.includes(tag)) {
+      setNewTag('');
+      return;
+    }
+    void setTags(noteId, [...note!.tags, tag]);
+    setNewTag('');
+  }
+
+  function handleRemoveTag(tag: string) {
+    void setTags(noteId, note!.tags.filter((t) => t !== tag));
+  }
+
+  function fmt(d: Date | undefined): string {
+    if (!d) return '—';
+    return (d instanceof Date ? d : new Date(d)).toLocaleString();
+  }
 
   return (
     <aside className="w-64 shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 overflow-y-auto text-sm">
@@ -48,19 +68,22 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-xs"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-xs"
               >
                 {tag}
+                <button
+                  onClick={() => handleRemoveTag(tag)}
+                  className="text-zinc-500 hover:text-zinc-200 leading-none"
+                  aria-label={`Remove tag ${tag}`}
+                >
+                  ×
+                </button>
               </span>
             ))}
             <input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newTag.trim()) {
-                  setNewTag('');
-                }
-              }}
+              onKeyDown={handleAddTag}
               placeholder="Add tag…"
               className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-xs outline-none w-24 placeholder-zinc-600"
             />
@@ -107,14 +130,14 @@ export function FrontmatterPanel({ noteId }: FrontmatterPanelProps) {
           </div>
         )}
 
-        {/* Modified */}
+        {/* Dates */}
+        <div>
+          <dt className="text-zinc-500 text-xs mb-1">Created</dt>
+          <dd className="text-xs text-zinc-400">{fmt(note.created)}</dd>
+        </div>
         <div>
           <dt className="text-zinc-500 text-xs mb-1">Modified</dt>
-          <dd className="text-xs text-zinc-400">
-            {note.modified instanceof Date
-              ? note.modified.toLocaleString()
-              : new Date(note.modified).toLocaleString()}
-          </dd>
+          <dd className="text-xs text-zinc-400">{fmt(note.modified)}</dd>
         </div>
       </div>
     </aside>
