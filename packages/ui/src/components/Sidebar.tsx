@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store.js';
 import { FileTree } from './FileTree.js';
+import { MonthBrowser } from './MonthBrowser.js';
 import { ACCENT_PRESETS } from '@notes-app/common';
 
 export function Sidebar() {
@@ -9,6 +10,7 @@ export function Sidebar() {
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [showNewNote, setShowNewNote] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [viewMode, setViewMode] = useState<'alpha' | 'month'>('alpha');
 
   const vaultName = vaultRoot ? vaultRoot.split('/').pop() ?? vaultRoot : '';
 
@@ -38,6 +40,13 @@ export function Sidebar() {
             +
           </button>
           <button
+            title={viewMode === 'alpha' ? 'Switch to by month' : 'Switch to A–Z'}
+            onClick={() => setViewMode((m) => (m === 'alpha' ? 'month' : 'alpha'))}
+            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-sm leading-none"
+          >
+            {viewMode === 'alpha' ? '📅' : 'A–Z'}
+          </button>
+          <button
             title="Settings"
             onClick={() => setShowSettings((v) => !v)}
             className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-sm leading-none"
@@ -63,8 +72,8 @@ export function Sidebar() {
         </form>
       )}
 
-      {/* File tree */}
-      <FileTree notes={notes} />
+      {/* Note list — alphabetical or by month */}
+      {viewMode === 'alpha' ? <FileTree notes={notes} /> : <MonthBrowser notes={notes} />}
 
       {/* Settings panel */}
       {showSettings && (
