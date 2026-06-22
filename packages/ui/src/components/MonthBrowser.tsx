@@ -13,7 +13,7 @@ function groupByMonth(notes: NoteRecord[]): Array<{ label: string; notes: NoteRe
   for (const note of notes) {
     // Guard: modified may arrive as a serialised string over IPC
     const d = note.modified instanceof Date ? note.modified : new Date(note.modified);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     const bucket = groups.get(key);
     if (bucket) {
       bucket.push(note);
