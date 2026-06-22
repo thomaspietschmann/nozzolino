@@ -5,7 +5,14 @@ import { VaultOpenScreen } from './components/VaultOpenScreen.js';
 import { AppShell } from './components/AppShell.js';
 
 export function App() {
-  const { vaultRoot, theme, accent } = useStore();
+  const { vaultRoot, theme, accent, openVault } = useStore();
+
+  // Auto-open vault when running under Playwright E2E (E2E_VAULT_PATH env var)
+  useEffect(() => {
+    const e2ePath = window.electronAPI?.e2eVaultPath;
+    if (e2ePath && !vaultRoot) void openVault(e2ePath);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');

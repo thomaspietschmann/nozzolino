@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcChannel } from '@notes-app/common';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  e2eVaultPath: process.env['E2E_VAULT_PATH'] ?? null,
+
   invoke<T = unknown>(channel: IpcChannel, ...args: unknown[]): Promise<T> {
     return ipcRenderer.invoke(channel, ...args) as Promise<T>;
   },

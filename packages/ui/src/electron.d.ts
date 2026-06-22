@@ -5,6 +5,7 @@ declare global {
     electronAPI: {
       invoke: <T = unknown>(channel: IpcChannel, ...args: unknown[]) => Promise<T>;
       on: (channel: IpcChannel, handler: (...args: unknown[]) => void) => () => void;
+      e2eVaultPath: string | null;
     };
   }
 }
