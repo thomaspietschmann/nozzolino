@@ -10,6 +10,8 @@ export interface VaultIndex {
   getNoteByTitle(title: string): NoteRecord | undefined;
   getNoteByPath(relativePath: string): NoteRecord | undefined;
   getBacklinks(noteId: string): NoteRecord[];
+  /** Returns every distinct relationship type used in outlinks across the vault. */
+  getRelationshipTypes(): string[];
   updateNote(record: NoteRecord): void;
   removeByPath(relativePath: string): void;
   addOrRefresh(absolutePath: string): Promise<NoteRecord>;
@@ -68,6 +70,16 @@ export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
       return [...byId.values()].filter((n) =>
         n.outlinks.some((l) => l.targetTitle.toLowerCase() === target.title.toLowerCase())
       );
+    },
+
+    getRelationshipTypes(): string[] {
+      const seen = new Set<string>();
+      for (const note of byId.values()) {
+        for (const link of note.outlinks) {
+          if (link.relationshipType) seen.add(link.relationshipType);
+        }
+      }
+      return [...seen].sort();
     },
 
     updateNote(record: NoteRecord): void {
