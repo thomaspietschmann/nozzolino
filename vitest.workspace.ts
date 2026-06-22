@@ -15,4 +15,11 @@ export default defineWorkspace([
       environment: 'node',
     },
   },
+  {
+    test: {
+      name: 'search',
+      include: ['packages/search/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
 ]);

@@ -150,6 +150,22 @@ importers:
         specifier: ^22.0.0
         version: 22.20.0
 
+  packages/search:
+    dependencies:
+      '@notes-app/common':
+        specifier: workspace:*
+        version: link:../common
+      lunr:
+        specifier: ^2.3.9
+        version: 2.3.9
+    devDependencies:
+      '@types/lunr':
+        specifier: ^2.3.7
+        version: 2.3.7
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+
   packages/ui:
     dependencies:
       '@notes-app/common':
@@ -158,6 +174,9 @@ importers:
       '@notes-app/editor':
         specifier: workspace:*
         version: link:../editor
+      '@notes-app/search':
+        specifier: workspace:*
+        version: link:../search
       '@notes-app/vault':
         specifier: workspace:*
         version: link:../vault
@@ -909,6 +928,9 @@ packages:
 
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
+
+  '@types/lunr@2.3.7':
+    resolution: {integrity: sha512-Tb/kUm38e8gmjahQzdCKhbdsvQ9/ppzHFfsJ0dMs3ckqQsRj+P5IkSAwFTBrBxdyr3E/LoMUUrZngjDYAjiE3A==}
 
   '@types/markdown-it@14.1.2':
     resolution: {integrity: sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog==}
@@ -2104,6 +2126,9 @@ packages:
   lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
+
+  lunr@2.3.9:
+    resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -3693,6 +3718,8 @@ snapshots:
 
   '@types/linkify-it@5.0.0': {}
 
+  '@types/lunr@2.3.7': {}
+
   '@types/markdown-it@14.1.2':
     dependencies:
       '@types/linkify-it': 5.0.0
@@ -5133,6 +5160,8 @@ snapshots:
       yallist: 4.0.0
 
   lru-cache@7.18.3: {}
+
+  lunr@2.3.9: {}
 
   magic-string@0.30.21:
     dependencies:

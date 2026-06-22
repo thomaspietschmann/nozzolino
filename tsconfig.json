@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/common" },
     { "path": "./packages/vault" },
-    { "path": "./packages/editor" }
+    { "path": "./packages/editor" },
+    { "path": "./packages/search" }
   ]
 }

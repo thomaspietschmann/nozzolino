@@ -40,6 +40,7 @@ export default defineConfig({
         '@notes-app/editor': resolve('../../packages/editor/src/index.ts'),
         '@notes-app/ui/styles': resolve('../../packages/ui/src/styles.css'),
         '@notes-app/ui': resolve('../../packages/ui/src/index.ts'),
+        '@notes-app/search': resolve('../../packages/search/src/index.ts'),
         '@': resolve('../../packages/ui/src'),
       },
     },
