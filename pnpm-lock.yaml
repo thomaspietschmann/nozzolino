@@ -35,6 +35,9 @@ importers:
       '@notes-app/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@notes-app/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@notes-app/ui':
         specifier: workspace:*
         version: link:../../packages/ui

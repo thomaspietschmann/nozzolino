@@ -72,4 +72,24 @@ export function registerIpcHandlers(win: BrowserWindow) {
   ipcMain.handle(IPC.IMAGE_SAVE, async (_event, base64: string, ext: string, activePath: string) => {
     return vault.saveImage(base64, ext, activePath || 'untitled.md');
   });
+
+  // ─── Sync / conflict resolution ──────────────────────────────────────────
+  ipcMain.handle(
+    IPC.SYNC_RESOLVE_CONFLICT,
+    async (_event, notePath: string, conflictFilePath: string, mergedContent: string) => {
+      return vault.resolveConflict(notePath, conflictFilePath, mergedContent);
+    }
+  );
+
+  ipcMain.handle(
+    IPC.SYNC_CREATE_CONFLICT_FROM_EXTERNAL,
+    async (_event, notePath: string, timestamp: string) => {
+      return vault.createConflictFromExternal(notePath, timestamp);
+    }
+  );
+
+  // ─── Export ──────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.EXPORT_ZIP, async () => {
+    return vault.exportZip(win);
+  });
 }

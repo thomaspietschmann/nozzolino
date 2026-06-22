@@ -15,6 +15,7 @@
     "@notes-app/common": "workspace:*",
     "@notes-app/ui": "workspace:*",
     "@notes-app/vault": "workspace:*",
+    "@notes-app/sync": "workspace:*",
     "electron-updater": "^6.3.9",
     "archiver": "^7.0.1"
   },

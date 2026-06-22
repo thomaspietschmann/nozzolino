@@ -74,8 +74,15 @@ export const IPC = {
   VAULT_FILE_CHANGED: 'vault:fileChanged',
   VAULT_FILE_DELETED: 'vault:fileDeleted',
   VAULT_DIR_CHANGED: 'vault:dirChanged',
-  // Sync
+  // Sync — watcher events (main → renderer)
+  VAULT_CONFLICT_DETECTED: 'vault:conflictDetected',
+  VAULT_CONFLICT_REMOVED: 'vault:conflictRemoved',
+  // Sync — renderer → main IPC calls
   SYNC_FORCE_SYNC: 'sync:forceSync',
+  SYNC_RESOLVE_CONFLICT: 'sync:resolveConflict',
+  SYNC_CREATE_CONFLICT_FROM_EXTERNAL: 'sync:createConflictFromExternal',
+  // Export
+  EXPORT_ZIP: 'export:zip',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

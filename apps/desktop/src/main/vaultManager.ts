@@ -1,10 +1,13 @@
 import { join, relative, basename, dirname } from 'path';
 import { promises as fs } from 'fs';
 import type { BrowserWindow } from 'electron';
+import { dialog } from 'electron';
 import { IPC, replaceWikiLinkTarget, parseFrontmatter, serializeFrontmatter } from '@notes-app/common';
-import type { Frontmatter } from '@notes-app/common';
+import type { Frontmatter, ConflictRecord } from '@notes-app/common';
 import { buildVaultIndex, watchVault, atomicWrite, mergeForSave } from '@notes-app/vault';
 import type { VaultIndex, VaultWatcher } from '@notes-app/vault';
+import { isConflictFile, primaryPathForConflict, makeConflictFilename } from '@notes-app/sync';
+import archiver from 'archiver';
 
 let currentVaultRoot: string | null = null;
 let vaultIndex: VaultIndex | null = null;
@@ -28,27 +31,36 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
   watcher = watchVault(vaultPath, async (event, absolutePath) => {
     if (!vaultIndex) return;
     const relativePath = relative(vaultPath, absolutePath);
+    const name = basename(absolutePath);
 
     if (event === 'unlink') {
-      vaultIndex.removeByPath(relativePath);
-      win.webContents.send(IPC.VAULT_FILE_CHANGED, {
-        event: 'unlink',
-        relativePath,
-      });
+      if (isConflictFile(name)) {
+        // Conflict copy was deleted (resolved or cleaned up by Syncthing)
+        win.webContents.send(IPC.VAULT_CONFLICT_REMOVED, relativePath);
+      } else {
+        vaultIndex.removeByPath(relativePath);
+        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath });
+      }
+      return;
+    }
+
+    if (isConflictFile(name)) {
+      // Conflict copy detected — send it to the renderer without indexing it
+      const conflictRecord = buildConflictRecord(relativePath, absolutePath, vaultIndex, vaultPath);
+      win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, conflictRecord);
       return;
     }
 
     try {
       const record = await vaultIndex.addOrRefresh(absolutePath);
-      win.webContents.send(IPC.VAULT_FILE_CHANGED, {
-        event,
-        relativePath,
-        record,
-      });
+      win.webContents.send(IPC.VAULT_FILE_CHANGED, { event, relativePath, record });
     } catch {
       // File may have been deleted immediately after event
     }
   });
+
+  // Surface any conflict files that already existed when the vault was opened
+  await scanExistingConflicts(vaultPath, vaultIndex, win);
 
   return vaultIndex.getAllNotes();
 }
@@ -203,4 +215,137 @@ export async function closeVault() {
   watcher = null;
   vaultIndex = null;
   currentVaultRoot = null;
+}
+
+// ─── Conflict helpers ─────────────────────────────────────────────────────────
+
+function buildConflictRecord(
+  conflictRelPath: string,
+  _absolutePath: string,
+  index: VaultIndex,
+  _vaultRoot: string,
+): ConflictRecord {
+  const primaryRelPath = primaryPathForConflict(conflictRelPath) ?? conflictRelPath;
+  const note = index.getNoteByPath(primaryRelPath);
+  return {
+    noteId: note?.id ?? '',
+    notePath: primaryRelPath,
+    conflictFilePath: conflictRelPath,
+    detectedAt: new Date(),
+  };
+}
+
+async function scanExistingConflicts(
+  vaultRoot: string,
+  index: VaultIndex,
+  win: BrowserWindow,
+): Promise<void> {
+  async function walk(dir: string): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.md') && isConflictFile(entry.name)) {
+        const relPath = relative(vaultRoot, fullPath);
+        const record = buildConflictRecord(relPath, fullPath, index, vaultRoot);
+        win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, record);
+      }
+    }
+  }
+  await walk(vaultRoot);
+}
+
+/**
+ * Resolves a conflict: writes the merged content atomically to the primary path,
+ * refreshes the index, then deletes the conflict file.
+ * Returns the refreshed NoteRecord for the primary note.
+ */
+export async function resolveConflict(
+  notePath: string,
+  conflictFilePath: string,
+  mergedContent: string,
+): Promise<import('@notes-app/common').NoteRecord> {
+  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
+  const primaryAbs = join(currentVaultRoot, notePath);
+  const conflictAbs = join(currentVaultRoot, conflictFilePath);
+
+  // Write the user-approved merged content verbatim (bypass mergeForSave — user controls content)
+  await atomicWrite(primaryAbs, mergedContent);
+  const record = await vaultIndex.addOrRefresh(primaryAbs);
+  await fs.unlink(conflictAbs);
+  return record;
+}
+
+/**
+ * Saves the current on-disk primary content as a Syncthing-style conflict file
+ * (ADR-0010 Case 2: external change arrives while local edits are unsaved).
+ * Returns a ConflictRecord pointing at the new conflict copy.
+ */
+export async function createConflictFromExternal(
+  notePath: string,
+  timestamp: string,
+): Promise<ConflictRecord> {
+  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
+  const primaryAbs = join(currentVaultRoot, notePath);
+  const primaryStem = basename(notePath, '.md');
+  const conflictFilename = makeConflictFilename(primaryStem, timestamp);
+  const conflictAbs = join(dirname(primaryAbs), conflictFilename);
+  const conflictRelPath = relative(currentVaultRoot, conflictAbs);
+
+  const externalContent = await fs.readFile(primaryAbs, 'utf-8');
+  await atomicWrite(conflictAbs, externalContent);
+
+  const note = vaultIndex.getNoteByPath(notePath);
+  return {
+    noteId: note?.id ?? '',
+    notePath,
+    conflictFilePath: conflictRelPath,
+    detectedAt: new Date(),
+  };
+}
+
+/**
+ * Opens a save dialog and exports the entire vault as a ZIP file.
+ * Skips dot-files/dirs and .tmp files.
+ * Returns the saved path or null if the user cancelled.
+ */
+export async function exportZip(win: BrowserWindow): Promise<string | null> {
+  if (!currentVaultRoot) throw new Error('No vault open');
+
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export vault to ZIP',
+    defaultPath: 'vault.zip',
+    filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+
+  const outputPath = result.filePath;
+  await new Promise<void>((resolve, reject) => {
+    const output = require('fs').createWriteStream(outputPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', resolve);
+    archive.on('error', reject);
+    archive.pipe(output);
+
+    archive.glob('**/*', {
+      cwd: currentVaultRoot!,
+      ignore: [
+        '.*',      // dot-files and dot-dirs
+        '**/*.tmp', // temp files from atomicWrite
+      ],
+      dot: false,
+    });
+
+    void archive.finalize();
+  });
+
+  return outputPath;
 }
