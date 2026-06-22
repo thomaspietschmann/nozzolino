@@ -46,9 +46,10 @@ export function AppShell() {
         upsertNoteRecord(event.record);
       }
 
-      // ADR-0010 auto-refresh for the currently open note
+      // ADR-0010 auto-refresh for the currently open note.
+      // Skip when selfWrite=true: this event echoes our own autosave, not a foreign edit.
       const activeNote = notes.find((n) => n.id === activeNoteId);
-      if (event.event === 'change' && activeNote && activeNote.path === event.relativePath) {
+      if (event.event === 'change' && !event.selfWrite && activeNote && activeNote.path === event.relativePath) {
         if (isDirty) {
           // Case 2: local unsaved edits — save external version as conflict file
           try {

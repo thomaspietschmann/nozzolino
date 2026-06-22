@@ -17,6 +17,21 @@ export interface VaultOpsContext {
   vaultFS: VaultFS;
   index: VaultIndex;
   generateId: () => string;
+  /** Called after every successful write so callers can track self-written paths. */
+  onDidWrite?: (relativePath: string, content: string) => void;
+}
+
+/**
+ * Writes content atomically and notifies ctx.onDidWrite so callers can
+ * attribute the resulting watcher event as a self-write echo.
+ */
+async function writeAttributed(
+  ctx: VaultOpsContext,
+  relativePath: string,
+  content: string,
+): Promise<void> {
+  await atomicWrite(ctx.vaultFS, relativePath, content);
+  ctx.onDidWrite?.(relativePath, content);
 }
 
 export async function writeNote(
@@ -33,7 +48,7 @@ export async function writeNote(
   }
   const inMemoryId = index.getNoteByPath(relativePath)?.id ?? generateId();
   const merged = mergeForSave(rawExisting, body, { id: inMemoryId });
-  await atomicWrite(vaultFS, relativePath, merged);
+  await writeAttributed(ctx, relativePath, merged);
   await index.addOrRefresh(vaultFS, relativePath);
 }
 
@@ -43,7 +58,7 @@ export async function createNote(ctx: VaultOpsContext, title: string): Promise<N
   const now = new Date().toISOString();
   const fm: Frontmatter = { id: generateId(), tags: [], created: now, modified: now };
   const content = serializeFrontmatter(fm, `# ${title}\n\n`);
-  await atomicWrite(vaultFS, fileName, content);
+  await writeAttributed(ctx, fileName, content);
   return index.addOrRefresh(vaultFS, fileName);
 }
 
@@ -80,7 +95,7 @@ export async function propagateRename(
         const content = await vaultFS.readFile(note.path);
         const replaced = replaceWikiLinkTarget(content, oldTitle, newTitle);
         if (replaced !== content) {
-          await atomicWrite(vaultFS, note.path, replaced);
+          await writeAttributed(ctx, note.path, replaced);
           return index.addOrRefresh(vaultFS, note.path);
         }
       } catch {
@@ -107,7 +122,7 @@ export async function updateFrontmatter(
   if (patch.emoji !== undefined) merged.emoji = patch.emoji ?? undefined;
   merged.modified = new Date().toISOString();
 
-  await atomicWrite(vaultFS, relativePath, serializeFrontmatter(merged, body));
+  await writeAttributed(ctx, relativePath, serializeFrontmatter(merged, body));
   return index.addOrRefresh(vaultFS, relativePath);
 }
 
@@ -141,7 +156,7 @@ export async function resolveConflict(
   mergedContent: string,
 ): Promise<NoteRecord> {
   const { vaultFS, index } = ctx;
-  await atomicWrite(vaultFS, notePath, mergedContent);
+  await writeAttributed(ctx, notePath, mergedContent);
   const record = await index.addOrRefresh(vaultFS, notePath);
   await vaultFS.deleteFile(conflictFilePath);
   return record;
@@ -158,7 +173,7 @@ export async function createConflictFromExternal(
   const conflictFilename = makeConflictFilename(primaryStem, timestamp);
   const conflictRelPath = noteDir === '.' ? conflictFilename : posixJoin(noteDir, conflictFilename);
   const externalContent = await vaultFS.readFile(notePath);
-  await atomicWrite(vaultFS, conflictRelPath, externalContent);
+  await writeAttributed(ctx, conflictRelPath, externalContent);
   const note = index.getNoteByPath(notePath);
   return {
     noteId: note?.id ?? '',

@@ -11,6 +11,8 @@ export interface FileChangedEvent {
   event: 'add' | 'change' | 'unlink';
   relativePath: string;
   record?: NoteRecord;
+  /** True when the event echoes the app's own last write — not an external modification. */
+  selfWrite?: boolean;
 }
 
 export const ipc = {

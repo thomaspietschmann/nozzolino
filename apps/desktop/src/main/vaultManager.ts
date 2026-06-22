@@ -1,4 +1,5 @@
 import { relative, basename } from 'path';
+import { createHash } from 'node:crypto';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 import { IPC } from '@notes-app/common';
@@ -31,9 +32,22 @@ let watcher: VaultWatcher | null = null;
 const pendingUnlinks = new Map<string, { title: string; relativePath: string; timer: ReturnType<typeof setTimeout> }>();
 const RENAME_WINDOW_MS = 2000;
 
+// Self-write attribution: tracks SHA-1 hashes of content the app last wrote per path.
+// The watcher compares incoming file content against this to suppress self-write echoes.
+const selfWriteHashes = new Map<string, string>();
+
+function sha1(content: string): string {
+  return createHash('sha1').update(content).digest('hex');
+}
+
 function getCtx(): VaultOpsContext {
   if (!vaultFS || !vaultIndex) throw new Error('No vault open');
-  return { vaultFS, index: vaultIndex, generateId: () => crypto.randomUUID() };
+  return {
+    vaultFS,
+    index: vaultIndex,
+    generateId: () => crypto.randomUUID(),
+    onDidWrite: (relativePath, content) => selfWriteHashes.set(relativePath, sha1(content)),
+  };
 }
 
 export function getVaultRoot() {
@@ -104,7 +118,20 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
           win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'change', relativePath: updated.path, record: updated });
         }
       } else {
-        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event, relativePath, record });
+        // Determine whether this event echoes the app's own last write.
+        // If the on-disk content matches what we last wrote, this is a self-write echo
+        // and should not trigger a conflict or a silent-reload in the renderer.
+        let selfWrite = false;
+        const knownHash = selfWriteHashes.get(relativePath);
+        if (knownHash !== undefined && vaultFS) {
+          try {
+            const onDisk = await vaultFS.readFile(relativePath);
+            selfWrite = sha1(onDisk) === knownHash;
+          } catch {
+            // If the file is transiently unreadable, treat as external.
+          }
+        }
+        win.webContents.send(IPC.VAULT_FILE_CHANGED, { event, relativePath, record, selfWrite });
       }
     } catch {
       // File may have been deleted immediately after event
@@ -162,6 +189,7 @@ export async function saveImage(
 export async function closeVault(): Promise<void> {
   for (const { timer } of pendingUnlinks.values()) clearTimeout(timer);
   pendingUnlinks.clear();
+  selfWriteHashes.clear();
   await watcher?.close();
   watcher = null;
   vaultIndex = null;
