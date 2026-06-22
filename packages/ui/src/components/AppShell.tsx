@@ -7,7 +7,11 @@ import { FrontmatterPanel } from './FrontmatterPanel.js';
 import { GraphView } from './GraphView.js';
 import { WikilinkPeek } from './WikilinkPeek.js';
 import { CommandPalette } from './CommandPalette.js';
+import { ConflictBanner } from './ConflictBanner.js';
+import { ConflictResolver } from './ConflictResolver.js';
+import { ConflictsPanel } from './ConflictsPanel.js';
 import { ipc } from '../ipc.js';
+import { parseFrontmatter } from '@notes-app/common';
 
 export function AppShell() {
   const {
@@ -15,8 +19,17 @@ export function AppShell() {
     activeNoteContent,
     showFrontmatterPanel,
     graphOpen,
+    activeConflict,
+    showConflictsPanel,
+    conflicts,
+    notes,
+    isDirty,
     upsertNoteRecord,
     removeNoteRecord,
+    addConflict,
+    removeConflict,
+    setActiveNoteContent,
+    setSyncStatus,
     toggleSearch,
     setSearchOpen,
     toggleGraph,
@@ -24,11 +37,39 @@ export function AppShell() {
 
   // Subscribe to file watcher events from main process
   useEffect(() => {
-    const offChanged = ipc.onFileChanged((event) => {
+    const offChanged = ipc.onFileChanged(async (event) => {
       if (event.event === 'unlink') {
         removeNoteRecord(event.relativePath);
-      } else if (event.record) {
+        return;
+      }
+      if (event.record) {
         upsertNoteRecord(event.record);
+      }
+
+      // ADR-0010 auto-refresh for the currently open note
+      const activeNote = notes.find((n) => n.id === activeNoteId);
+      if (event.event === 'change' && activeNote && activeNote.path === event.relativePath) {
+        if (isDirty) {
+          // Case 2: local unsaved edits — save external version as conflict file
+          try {
+            const record = await ipc.createConflictFromExternal(
+              event.relativePath,
+              new Date().toISOString(),
+            );
+            addConflict(record);
+          } catch {
+            // ignore — the watcher 'add' event for the conflict file will arrive shortly
+          }
+        } else {
+          // Case 1: no unsaved edits — silently reload editor content
+          try {
+            const raw = await ipc.readFile(event.relativePath);
+            const { body } = parseFrontmatter(raw);
+            setActiveNoteContent(body);
+          } catch {
+            // file may be transiently unavailable
+          }
+        }
       }
     });
 
@@ -36,11 +77,33 @@ export function AppShell() {
       removeNoteRecord(relativePath);
     });
 
+    const offConflictDetected = ipc.onConflictDetected((record) => {
+      addConflict(record);
+    });
+
+    const offConflictRemoved = ipc.onConflictRemoved((conflictFilePath) => {
+      removeConflict(conflictFilePath);
+    });
+
     return () => {
       offChanged();
       offDeleted();
+      offConflictDetected();
+      offConflictRemoved();
     };
-  }, [upsertNoteRecord, removeNoteRecord]);
+  }, [upsertNoteRecord, removeNoteRecord, addConflict, removeConflict, setActiveNoteContent, notes, activeNoteId, isDirty]);
+
+  // Online/offline → sync dot
+  useEffect(() => {
+    const onOnline = () => setSyncStatus('synced');
+    const onOffline = () => setSyncStatus('offline');
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [setSyncStatus]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -61,16 +124,24 @@ export function AppShell() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [toggleSearch, setSearchOpen, toggleGraph]);
 
+  // Derive the active note's conflict record (if any)
+  const activeNote = notes.find((n) => n.id === activeNoteId);
+  const activeNoteConflict = activeNote
+    ? conflicts.find((c) => c.notePath === activeNote.path) ?? null
+    : null;
+
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
       <WikilinkPeek />
       <CommandPalette />
+      {activeConflict && <ConflictResolver />}
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {activeNoteId && activeNoteContent !== null ? (
           <>
             <NoteHeader noteId={activeNoteId} />
+            {activeNoteConflict && <ConflictBanner conflict={activeNoteConflict} />}
             {graphOpen ? (
               <GraphView />
             ) : (
@@ -79,6 +150,7 @@ export function AppShell() {
                   <NoteEditor content={activeNoteContent} noteId={activeNoteId} />
                 </div>
                 {showFrontmatterPanel && <FrontmatterPanel noteId={activeNoteId} />}
+                {showConflictsPanel && <ConflictsPanel />}
               </div>
             )}
           </>

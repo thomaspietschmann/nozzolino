@@ -1,5 +1,5 @@
 import { IPC } from '@notes-app/common';
-import type { NoteRecord } from '@notes-app/common';
+import type { NoteRecord, ConflictRecord } from '@notes-app/common';
 
 export interface RecentVault {
   path: string;
@@ -71,5 +71,25 @@ export const ipc = {
 
   onFileDeleted(handler: (relativePath: string) => void): () => void {
     return window.electronAPI.on(IPC.VAULT_FILE_DELETED, handler as (...args: unknown[]) => void);
+  },
+
+  onConflictDetected(handler: (record: ConflictRecord) => void): () => void {
+    return window.electronAPI.on(IPC.VAULT_CONFLICT_DETECTED, handler as (...args: unknown[]) => void);
+  },
+
+  onConflictRemoved(handler: (conflictFilePath: string) => void): () => void {
+    return window.electronAPI.on(IPC.VAULT_CONFLICT_REMOVED, handler as (...args: unknown[]) => void);
+  },
+
+  resolveConflict(notePath: string, conflictFilePath: string, mergedContent: string): Promise<NoteRecord> {
+    return window.electronAPI.invoke<NoteRecord>(IPC.SYNC_RESOLVE_CONFLICT, notePath, conflictFilePath, mergedContent);
+  },
+
+  createConflictFromExternal(notePath: string, timestamp: string): Promise<ConflictRecord> {
+    return window.electronAPI.invoke<ConflictRecord>(IPC.SYNC_CREATE_CONFLICT_FROM_EXTERNAL, notePath, timestamp);
+  },
+
+  exportZip(): Promise<string | null> {
+    return window.electronAPI.invoke<string | null>(IPC.EXPORT_ZIP);
   },
 };

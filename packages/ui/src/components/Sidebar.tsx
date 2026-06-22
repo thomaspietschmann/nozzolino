@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useStore } from '../store.js';
+import type { SyncStatus } from '@notes-app/common';
 import { FileTree } from './FileTree.js';
 import { MonthBrowser } from './MonthBrowser.js';
 import { ACCENT_PRESETS } from '@notes-app/common';
 
 export function Sidebar() {
-  const { notes, vaultRoot, createNote, theme, accent, setTheme, setAccent, syncStatus } =
+  const { notes, vaultRoot, createNote, theme, accent, setTheme, setAccent, syncStatus, toggleConflictsPanel } =
     useStore();
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [showNewNote, setShowNewNote] = useState(false);
@@ -28,7 +29,7 @@ export function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-800">
         <div className="flex items-center gap-2 min-w-0">
-          <SyncDot status={syncStatus} />
+          <SyncDot status={syncStatus} onClick={toggleConflictsPanel} />
           <span className="font-medium text-zinc-200 text-sm truncate">{vaultName}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -126,17 +127,43 @@ export function Sidebar() {
   );
 }
 
-function SyncDot({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    synced: 'bg-emerald-500',
-    syncing: 'bg-amber-500 animate-pulse',
-    error: 'bg-red-500',
-    offline: 'bg-zinc-600',
+function SyncDot({ status, onClick }: { status: SyncStatus; onClick?: () => void }) {
+  // ADR-0009 4-state spec:
+  //   synced  → solid green
+  //   syncing → solid yellow (no pulse; pulse would look like an error)
+  //   error   → solid red
+  //   offline → hollow red ring
+  const label: Record<SyncStatus, string> = {
+    synced: 'Synced',
+    syncing: 'Syncing…',
+    error: 'Conflict detected — click to review',
+    offline: 'Offline',
   };
+
+  if (status === 'offline') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={label.offline}
+        className="w-2.5 h-2.5 rounded-full shrink-0 border-2 border-red-500 bg-transparent cursor-pointer"
+      />
+    );
+  }
+
+  const solidColor: Record<SyncStatus, string> = {
+    synced: 'bg-emerald-500',
+    syncing: 'bg-amber-400',
+    error: 'bg-red-500',
+    offline: '',
+  };
+
   return (
-    <span
-      className={`w-2 h-2 rounded-full shrink-0 ${colors[status] ?? colors['offline']}`}
-      title={`Sync: ${status}`}
+    <button
+      type="button"
+      onClick={onClick}
+      title={label[status]}
+      className={`w-2 h-2 rounded-full shrink-0 cursor-pointer ${solidColor[status]}`}
     />
   );
 }

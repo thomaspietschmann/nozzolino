@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { NoteRecord, AccentPresetKey, SyncStatus } from '@notes-app/common';
+import type { NoteRecord, AccentPresetKey, SyncStatus, ConflictRecord } from '@notes-app/common';
 import { ACCENT_PRESETS, SEARCH_DEBOUNCE_MS, parseFrontmatter } from '@notes-app/common';
 import { buildIndex, search, filterByTags } from '@notes-app/search';
 import type { SearchIndex } from '@notes-app/search';
@@ -39,6 +39,9 @@ export interface AppState {
 
   // Sync
   syncStatus: SyncStatus;
+  conflicts: ConflictRecord[];
+  activeConflict: ConflictRecord | null;
+  showConflictsPanel: boolean;
 
   // Actions — vault / notes
   openVault: (path: string) => Promise<void>;
@@ -48,6 +51,13 @@ export interface AppState {
   renameNote: (id: string, newTitle: string) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   setDirty: (dirty: boolean) => void;
+  setActiveNoteContent: (content: string) => void;
+  setSyncStatus: (status: SyncStatus) => void;
+  addConflict: (record: ConflictRecord) => void;
+  removeConflict: (conflictFilePath: string) => void;
+  setActiveConflict: (conflict: ConflictRecord | null) => void;
+  toggleConflictsPanel: () => void;
+  resolveConflict: (conflict: ConflictRecord, mergedContent: string) => Promise<void>;
   setSidebarOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setAccent: (accent: AccentPresetKey) => void;
@@ -100,6 +110,9 @@ export const useStore = create<AppState>((set, get) => ({
   accent: savedAccent,
   showFrontmatterPanel: false,
   syncStatus: 'synced',
+  conflicts: [],
+  activeConflict: null,
+  showConflictsPanel: false,
 
   // Search / palette initial state
   searchOpen: false,
@@ -195,6 +208,62 @@ export const useStore = create<AppState>((set, get) => ({
 
   setDirty(dirty: boolean) {
     set({ isDirty: dirty });
+  },
+
+  setActiveNoteContent(content: string) {
+    set({ activeNoteContent: content });
+  },
+
+  setSyncStatus(status: SyncStatus) {
+    set({ syncStatus: status });
+  },
+
+  addConflict(record: ConflictRecord) {
+    set((s) => {
+      // Dedupe by conflictFilePath
+      const exists = s.conflicts.some((c) => c.conflictFilePath === record.conflictFilePath);
+      const conflicts = exists ? s.conflicts : [...s.conflicts, record];
+      return { conflicts, syncStatus: 'error' };
+    });
+  },
+
+  removeConflict(conflictFilePath: string) {
+    set((s) => {
+      const conflicts = s.conflicts.filter((c) => c.conflictFilePath !== conflictFilePath);
+      return {
+        conflicts,
+        activeConflict:
+          s.activeConflict?.conflictFilePath === conflictFilePath ? null : s.activeConflict,
+        syncStatus: conflicts.length === 0 ? 'synced' : 'error',
+      };
+    });
+  },
+
+  setActiveConflict(conflict: ConflictRecord | null) {
+    set({ activeConflict: conflict });
+  },
+
+  toggleConflictsPanel() {
+    set((s) => ({ showConflictsPanel: !s.showConflictsPanel }));
+  },
+
+  async resolveConflict(conflict: ConflictRecord, mergedContent: string) {
+    const { activeNoteId, notes } = get();
+    set({ syncStatus: 'syncing' });
+    const updatedRecord = await ipc.resolveConflict(
+      conflict.notePath,
+      conflict.conflictFilePath,
+      mergedContent,
+    );
+    get().upsertNoteRecord(updatedRecord);
+    get().removeConflict(conflict.conflictFilePath);
+    // If the resolved note is currently open, push the merged content into the editor
+    const activeNote = notes.find((n) => n.id === activeNoteId);
+    if (activeNote?.path === conflict.notePath) {
+      const { body } = parseFrontmatter(mergedContent);
+      get().setActiveNoteContent(body);
+    }
+    set({ activeConflict: null });
   },
 
   setSidebarOpen(open: boolean) {

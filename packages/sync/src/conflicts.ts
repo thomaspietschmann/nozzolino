@@ -1,6 +1,18 @@
 import { diffLines } from 'diff';
 import { SYNCTHING_CONFLICT_INFIX } from '@notes-app/common';
-import { basename, dirname, join } from 'path';
+
+// Minimal path helpers — avoids importing Node's 'path' so this module is
+// usable in both the main process (Node) and the renderer (browser bundle).
+function pathBasename(p: string): string {
+  return p.replace(/.*[/\\]/, '');
+}
+function pathDirname(p: string): string {
+  const idx = p.lastIndexOf('/') === -1 ? p.lastIndexOf('\\') : p.lastIndexOf('/');
+  return idx === -1 ? '.' : p.slice(0, idx);
+}
+function pathJoin(...parts: string[]): string {
+  return parts.join('/').replace(/\/{2,}/g, '/');
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +31,7 @@ export interface DiffSegment {
  * @example isConflictFile('note.md') // false
  */
 export function isConflictFile(filename: string): boolean {
-  return basename(filename).includes(SYNCTHING_CONFLICT_INFIX);
+  return pathBasename(filename).includes(SYNCTHING_CONFLICT_INFIX);
 }
 
 /**
@@ -33,7 +45,7 @@ export function isConflictFile(filename: string): boolean {
 export function parseConflictFilename(
   filename: string,
 ): { primaryStem: string; tag: string } | null {
-  const name = basename(filename);
+  const name = pathBasename(filename);
   const idx = name.indexOf(SYNCTHING_CONFLICT_INFIX);
   if (idx === -1) return null;
 
@@ -71,10 +83,13 @@ export function makeConflictFilename(primaryStem: string, timestamp: string): st
  *          // => 'sub/My Note.md'
  */
 export function primaryPathForConflict(conflictRelPath: string): string | null {
-  const name = basename(conflictRelPath);
+  const name = pathBasename(conflictRelPath);
   const parsed = parseConflictFilename(name);
   if (!parsed) return null;
-  return join(dirname(conflictRelPath), `${parsed.primaryStem}.md`);
+  const dir = pathDirname(conflictRelPath);
+  // At the vault root dirname returns '.'; omit it to keep the path clean.
+  if (dir === '.') return `${parsed.primaryStem}.md`;
+  return pathJoin(dir, `${parsed.primaryStem}.md`);
 }
 
 // ─── Line diff ────────────────────────────────────────────────────────────────
