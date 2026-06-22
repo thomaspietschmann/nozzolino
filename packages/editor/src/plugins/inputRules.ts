@@ -53,17 +53,18 @@ export function buildInputRules(): Plugin {
         return state.tr.replaceRangeWith(start, end, hr);
       }),
 
-      // Bold: **text**
+      // Bold: **text** (must be checked before the italic *text* rule)
       markInputRule(/\*\*([^*]+)\*\*$/, schema.marks['strong']!),
 
       // Bold: __text__
       markInputRule(/__([^_]+)__$/, schema.marks['strong']!),
 
-      // Italic: *text*
-      markInputRule(/\*([^*]+)\*$/, schema.marks['em']!),
+      // Italic: *text* — negative lookbehind/lookahead prevents premature match
+      // when the user is still typing **text** (would otherwise match *text* midway).
+      markInputRule(/(?<!\*)\*([^*]+)\*(?!\*)$/, schema.marks['em']!),
 
-      // Italic: _text_
-      markInputRule(/_([^_]+)_$/, schema.marks['em']!),
+      // Italic: _text_ — same guard against __text__ triggering italic early.
+      markInputRule(/(?<!_)_([^_]+)_(?!_)$/, schema.marks['em']!),
 
       // Inline code: `text`
       markInputRule(/`([^`]+)`$/, schema.marks['code']!),

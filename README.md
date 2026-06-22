@@ -66,6 +66,7 @@ Milestones M0 (foundation) and M1 (desktop editor) are complete.
 
 ## Where to go next
 
+- **[`docs/features.md`](docs/features.md)** — end-user feature guide and full keyboard shortcut reference
 - **[`docs/README.md`](docs/README.md)** — overview of all planning documents and how they fit together
 - **[`docs/roadmap.md`](docs/roadmap.md)** — milestone-by-milestone build plan (M0–M8)
 - **[`docs/adr/`](docs/adr/)** — one file per major technical decision, with context and rationale

@@ -40,12 +40,30 @@ export function buildKeymaps(): Plugin[] {
     'Mod-0': setBlockType(schema.nodes['paragraph']!),
     'Mod->': wrapIn(schema.nodes['blockquote']!),
     Enter: splitListItem(schema.nodes['list_item']!),
-    Tab: sinkListItem(schema.nodes['list_item']!),
-    'Shift-Tab': liftListItem(schema.nodes['list_item']!),
+    // Tab: indent list item when inside a list; otherwise swallow the key so the
+    // browser does not cycle focus away from the editor.  In code blocks, insert
+    // two spaces as indentation instead.
+    Tab: (state, dispatch) => {
+      if (sinkListItem(schema.nodes['list_item']!)(state, dispatch)) return true;
+      if (state.selection.$from.parent.type.name === 'code_block') {
+        if (dispatch) dispatch(state.tr.insertText('  '));
+        return true;
+      }
+      return true; // swallow Tab everywhere to prevent focus cycling
+    },
+    // Shift-Tab: outdent list item; otherwise swallow to prevent reverse focus cycling.
+    'Shift-Tab': (state, dispatch) => {
+      liftListItem(schema.nodes['list_item']!)(state, dispatch);
+      return true;
+    },
   };
 
   if (!mac) {
     keys['Ctrl-y'] = redo;
+  } else {
+    // Cmd+` (Mod-`) is intercepted by Electron's default "Cycle Windows" menu accelerator
+    // on macOS and never reaches ProseMirror.  Register Ctrl+` as a working alternative.
+    keys['Ctrl-`'] = toggleMark(schema.marks['code']!);
   }
 
   return [keymap(keys), keymap(baseKeymap)];

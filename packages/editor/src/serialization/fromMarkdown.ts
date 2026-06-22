@@ -18,9 +18,22 @@ const markdownParser = new MarkdownParser(
  * Parse a Markdown string into a ProseMirror document node.
  * After the standard parse, text nodes matching [[Title]] or [[Title||TYPE]]
  * are replaced with inline wikilink nodes.
+ *
+ * A trailing empty paragraph is appended when the document does not already
+ * end with one, ensuring there is always a text-insertion point below the
+ * last block-level node (heading, code block, horizontal rule, etc.).
  */
 export function fromMarkdown(markdown: string): Node {
-  const baseDoc = markdownParser.parse(markdown) as Node;
+  let baseDoc = markdownParser.parse(markdown) as Node;
+
+  // Guarantee a trailing paragraph so users (and tests) can always position
+  // the cursor below the last block-level element.
+  const lastChild = baseDoc.lastChild;
+  if (!lastChild || lastChild.type.name !== 'paragraph') {
+    const emptyParagraph = schema.nodes['paragraph']!.create();
+    baseDoc = baseDoc.copy(baseDoc.content.addToEnd(emptyParagraph));
+  }
+
   const wikilinkType = schema.nodes['wikilink'];
   if (!wikilinkType) return baseDoc;
   return injectWikilinks(baseDoc);

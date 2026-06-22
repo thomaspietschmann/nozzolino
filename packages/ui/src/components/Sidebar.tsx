@@ -11,7 +11,7 @@ import { ACCENT_PRESETS } from '@notes-app/common';
 const isMacOS = typeof window !== 'undefined' && window.electronAPI?.platform === 'darwin';
 
 export function Sidebar() {
-  const { notes, vaultRoot, createNote, theme, accent, setTheme, setAccent, syncStatus, toggleConflictsPanel } =
+  const { notes, vaultRoot, createNote, theme, accent, setTheme, setAccent, syncStatus, toggleConflictsPanel, toggleHelp } =
     useStore();
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [showNewNote, setShowNewNote] = useState(false);
@@ -58,6 +58,13 @@ export function Sidebar() {
             className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-sm leading-none"
           >
             {viewMode === 'alpha' ? '📅' : 'A–Z'}
+          </button>
+          <button
+            title="Keyboard shortcuts"
+            onClick={toggleHelp}
+            className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors text-sm leading-none"
+          >
+            ⌨
           </button>
           <button
             title="Settings"

@@ -4,6 +4,8 @@ This directory contains the authoritative planning documents for the notes app.
 The three source files in the project root remain as-is for reference; this `docs/`
 folder is the single place to go for decisions, stories, and build plan.
 
+**[→ Feature guide & keyboard shortcut reference](features.md)**
+
 ---
 
 ## Source Precedence Rule

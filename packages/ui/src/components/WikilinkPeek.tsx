@@ -36,8 +36,14 @@ export function WikilinkPeek() {
         .catch(() => null);
     };
 
-    const handleOut = () => {
-      hideTimer.current = setTimeout(() => setPeek(null), 200);
+    const handleOut = (e: MouseEvent) => {
+      // Only react to mouseout events where the mouse leaves a .wikilink element.
+      const wikilink = (e.target as HTMLElement).closest('.wikilink');
+      if (!wikilink) return;
+      // Ignore transitions to child elements of the same wikilink (e.g. inner spans).
+      const to = e.relatedTarget as HTMLElement | null;
+      if (to && wikilink.contains(to)) return;
+      hideTimer.current = setTimeout(() => setPeek(null), 500);
     };
 
     document.addEventListener('mouseover', handleOver);
@@ -61,10 +67,10 @@ export function WikilinkPeek() {
 
   return (
     <div
-      className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl p-4 max-w-sm text-sm text-zinc-700 dark:text-zinc-300"
-      style={{ left: Math.min(peek.x, window.innerWidth - 360), top: peek.y }}
+      className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl p-4 max-w-lg text-sm text-zinc-700 dark:text-zinc-300"
+      style={{ left: Math.min(peek.x, window.innerWidth - 520), top: peek.y }}
       onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current); }}
-      onMouseLeave={() => { hideTimer.current = setTimeout(() => setPeek(null), 200); }}
+      onMouseLeave={() => { hideTimer.current = setTimeout(() => setPeek(null), 500); }}
     >
       <p className="font-semibold text-zinc-900 dark:text-white mb-2">{peek.title}</p>
       <p className="text-zinc-500 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap">{peek.content}</p>

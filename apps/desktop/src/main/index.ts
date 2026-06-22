@@ -1,6 +1,10 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'path';
-import { registerIpcHandlers } from './ipc/index.js';
+import { registerIpcHandlers } from './ipc';
+
+// In E2E mode hide the window so it does not pop up on the user's screen.
+// Playwright can still interact with hidden windows via webContents.
+const isE2E = !!process.env['E2E_VAULT_PATH'];
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -10,6 +14,7 @@ function createWindow() {
     minHeight: 480,
     backgroundColor: '#09090b', // zinc-950
     titleBarStyle: 'hiddenInset',
+    show: !isE2E,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.mjs'),
       contextIsolation: true,

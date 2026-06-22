@@ -10,8 +10,10 @@ import { CommandPalette } from './CommandPalette.js';
 import { ConflictBanner } from './ConflictBanner.js';
 import { ConflictResolver } from './ConflictResolver.js';
 import { ConflictsPanel } from './ConflictsPanel.js';
+import { HelpOverlay } from './HelpOverlay.js';
 import { ipc } from '../ipc.js';
 import { parseFrontmatter } from '@notes-app/common';
+import { MOD } from '../help/shortcuts.js';
 
 export function AppShell() {
   const {
@@ -33,6 +35,9 @@ export function AppShell() {
     toggleSearch,
     setSearchOpen,
     toggleGraph,
+    toggleHelp,
+    setHelpOpen,
+    createNote,
   } = useStore();
 
   // Subscribe to file watcher events from main process
@@ -119,11 +124,12 @@ export function AppShell() {
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
+        setHelpOpen(false);
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [toggleSearch, setSearchOpen, toggleGraph]);
+  }, [toggleSearch, setSearchOpen, toggleGraph, setHelpOpen]);
 
   // Derive the active note's conflict record (if any)
   const activeNote = notes.find((n) => n.id === activeNoteId);
@@ -135,6 +141,7 @@ export function AppShell() {
     <div className="flex h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden">
       <WikilinkPeek />
       <CommandPalette />
+      <HelpOverlay />
       {activeConflict && <ConflictResolver />}
       <Sidebar />
 
@@ -156,21 +163,90 @@ export function AppShell() {
             )}
           </>
         ) : (
-          <EmptyState />
+          <EmptyState
+            onNewNote={() => createNote('Untitled')}
+            onPalette={toggleSearch}
+            onGraph={toggleGraph}
+            onHelp={toggleHelp}
+          />
         )}
       </main>
     </div>
   );
 }
 
-function EmptyState() {
+function EmptyState({ onNewNote, onPalette, onGraph, onHelp }: {
+  onNewNote: () => void;
+  onPalette: () => void;
+  onGraph: () => void;
+  onHelp: () => void;
+}) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
-      <svg className="w-16 h-16 mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      <p className="text-lg">Select a note or create a new one</p>
-      <p className="text-sm mt-1">Click <strong>+</strong> in the sidebar to create your first note</p>
+    <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 text-center select-none">
+      {/* Logo / icon */}
+      <div className="w-16 h-16 mb-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-3xl shadow-inner">
+        📝
+      </div>
+
+      <h1 className="text-xl font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
+        Welcome to notes-app
+      </h1>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8 max-w-sm">
+        Plain Markdown files. No lock-in. Syncs with Syncthing.
+      </p>
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-3 justify-center mb-10">
+        <button
+          onClick={onNewNote}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90 transition-opacity shadow"
+        >
+          <span className="text-base leading-none">＋</span>
+          New note
+        </button>
+        <button
+          onClick={onPalette}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span>🔍</span>
+          Search
+          <kbd className="ml-1 text-xs text-zinc-400 dark:text-zinc-600 border border-zinc-300 dark:border-zinc-700 rounded px-1">{MOD}K</kbd>
+        </button>
+        <button
+          onClick={onGraph}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span>🕸</span>
+          Graph
+          <kbd className="ml-1 text-xs text-zinc-400 dark:text-zinc-600 border border-zinc-300 dark:border-zinc-700 rounded px-1">{MOD}G</kbd>
+        </button>
+      </div>
+
+      {/* Feature highlights */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-lg text-left mb-8">
+        {[
+          { icon: '[[', label: 'Wikilinks', desc: 'Type [[ to link notes' },
+          { icon: '🏷', label: 'Tags', desc: 'Frontmatter tags + filter' },
+          { icon: '#', label: 'Markdown', desc: 'Full Markdown with autoformat' },
+          { icon: '🔄', label: 'Sync', desc: 'Conflict-safe Syncthing sync' },
+          { icon: '🌙', label: 'Themes', desc: 'Dark & light mode + accent' },
+          { icon: '🔍', label: 'Full-text search', desc: 'Instant across all notes' },
+        ].map((f) => (
+          <div key={f.label} className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60">
+            <div className="text-lg mb-1 font-mono text-accent">{f.icon}</div>
+            <div className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{f.label}</div>
+            <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{f.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Hint */}
+      <button
+        onClick={onHelp}
+        className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex items-center gap-1"
+      >
+        Click <strong>⌨</strong> in the sidebar to see all keyboard shortcuts
+      </button>
     </div>
   );
 }

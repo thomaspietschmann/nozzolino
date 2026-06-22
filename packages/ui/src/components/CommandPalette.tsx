@@ -18,6 +18,7 @@ export function CommandPalette() {
     selectNote,
     createNote,
     toggleFrontmatterPanel,
+    toggleHelp,
   } = useStore();
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +85,14 @@ export function CommandPalette() {
       run: () => {
         close();
         void ipc.exportZip();
+      },
+    },
+    {
+      label: 'Keyboard shortcuts',
+      icon: '⌨',
+      run: () => {
+        close();
+        toggleHelp();
       },
     },
   ];

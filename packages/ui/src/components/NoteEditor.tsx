@@ -135,6 +135,21 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     viewRef.current = view;
     view.focus();
 
+    // Position cursor at the start of the body content (the block after the
+    // title heading) so typing begins below the title rather than inside it.
+    {
+      const { doc } = view.state;
+      if (doc.childCount >= 2 && doc.child(0).type.name === 'heading') {
+        const bodyStart = doc.child(0).nodeSize + 1;
+        try {
+          const sel = TextSelection.create(doc, bodyStart);
+          view.dispatch(view.state.tr.setSelection(sel));
+        } catch {
+          // fallback: keep default focus position
+        }
+      }
+    }
+
     // Scroll to first search match if we arrived here via the command palette
     if (pendingScrollTerm) {
       scrollToTerm(view, pendingScrollTerm);

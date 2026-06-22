@@ -37,6 +37,9 @@ export interface AppState {
   // Graph
   graphOpen: boolean;
 
+  // Help overlay
+  helpOpen: boolean;
+
   // Sync
   syncStatus: SyncStatus;
   conflicts: ConflictRecord[];
@@ -69,6 +72,10 @@ export interface AppState {
   // Actions — graph
   toggleGraph: () => void;
   setGraphOpen: (open: boolean) => void;
+
+  // Actions — help overlay
+  toggleHelp: () => void;
+  setHelpOpen: (open: boolean) => void;
 
   // Actions — search / palette
   toggleSearch: () => void;
@@ -122,6 +129,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Graph initial state
   graphOpen: false,
+
+  // Help overlay initial state
+  helpOpen: false,
 
   async openVault(path: string) {
     const records = await ipc.openVault(path);
@@ -322,6 +332,16 @@ export const useStore = create<AppState>((set, get) => ({
 
   setGraphOpen(open: boolean) {
     set({ graphOpen: open });
+  },
+
+  // ─── Help overlay ──────────────────────────────────────────────────────────
+
+  toggleHelp() {
+    set((s) => ({ helpOpen: !s.helpOpen }));
+  },
+
+  setHelpOpen(open: boolean) {
+    set({ helpOpen: open });
   },
 
   // ─── Search / palette ───────────────────────────────────────────────────────

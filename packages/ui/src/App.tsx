@@ -8,10 +8,10 @@ export function App() {
   const { vaultRoot, theme, accent, openVault } = useStore();
 
   // Auto-open vault when running under Playwright E2E (E2E_VAULT_PATH env var)
+  // Run only on mount — intentional empty dep array (auto-open E2E vault)
   useEffect(() => {
     const e2ePath = window.electronAPI?.e2eVaultPath;
     if (e2ePath && !vaultRoot) void openVault(e2ePath);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
