@@ -1,7 +1,6 @@
-import { basename, relative } from 'path';
-import { parseFrontmatter, parseWikiLinks } from '@notes-app/common';
+import { parseFrontmatter, parseWikiLinks, posixBasename } from '@notes-app/common';
 import type { NoteRecord } from '@notes-app/common';
-import { promises as fs } from 'fs';
+import type { VaultFS } from './VaultFS.js';
 
 /**
  * Parses a .md file and returns a NoteRecord.
@@ -11,30 +10,21 @@ import { promises as fs } from 'fs';
  * here. The caller (VaultIndex) persists the UUID only on the first
  * explicit user save.
  */
-export async function parseNote(
-  filePath: string,
-  vaultRoot: string
-): Promise<NoteRecord> {
-  const raw = await fs.readFile(filePath, 'utf-8');
-  const stat = await fs.stat(filePath);
-  return parseNoteContent(raw, filePath, vaultRoot, stat.mtime);
+export async function parseNote(vaultFS: VaultFS, relativePath: string): Promise<NoteRecord> {
+  const raw = await vaultFS.readFile(relativePath);
+  const { mtime } = await vaultFS.stat(relativePath);
+  return parseNoteContent(raw, relativePath, mtime);
 }
 
-export function parseNoteContent(
-  content: string,
-  filePath: string,
-  vaultRoot: string,
-  mtime: Date
-): NoteRecord {
+export function parseNoteContent(content: string, relativePath: string, mtime: Date): NoteRecord {
   const { frontmatter, body } = parseFrontmatter(content);
 
   const id = frontmatter.id ?? generateId();
-  const fileName = basename(filePath, '.md');
-  const title = fileName;
+  const title = posixBasename(relativePath, '.md');
 
   return {
     id,
-    path: relative(vaultRoot, filePath),
+    path: relativePath,
     title,
     emoji: frontmatter.emoji ?? null,
     tags: frontmatter.tags,
@@ -49,6 +39,5 @@ function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Node 14 fallback (shouldn't be needed with Node ≥22)
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

@@ -1,13 +1,18 @@
-import { promises as fs } from 'fs';
-import { dirname, basename, join } from 'path';
+import { posixDirname, posixBasename, posixJoin } from '@notes-app/common';
+import type { VaultFS } from './VaultFS.js';
 
 /**
  * Write content atomically: write to a temp file, then rename into place.
  * Prevents a crashed write from leaving a truncated note file.
  */
-export async function atomicWrite(filePath: string, content: string): Promise<void> {
-  const dir = dirname(filePath);
-  const tmp = join(dir, `.${basename(filePath)}.tmp`);
-  await fs.writeFile(tmp, content, 'utf-8');
-  await fs.rename(tmp, filePath);
+export async function atomicWrite(
+  vaultFS: VaultFS,
+  relativePath: string,
+  content: string,
+): Promise<void> {
+  const dir = posixDirname(relativePath);
+  const tmpName = `.${posixBasename(relativePath)}.tmp`;
+  const tmp = dir === '.' ? tmpName : posixJoin(dir, tmpName);
+  await vaultFS.writeFile(tmp, content);
+  await vaultFS.renameFile(tmp, relativePath);
 }

@@ -1,11 +1,11 @@
-import { join, basename } from 'path';
+import { posixBasename } from '@notes-app/common';
 import type { NoteRecord } from '@notes-app/common';
 import { SYNCTHING_CONFLICT_INFIX } from '@notes-app/common';
+import type { VaultFS } from './VaultFS.js';
 import { scanVault } from './VaultScanner.js';
 import { parseNote } from './NoteParser.js';
 
 export interface VaultIndex {
-  readonly vaultRoot: string;
   getAllNotes(): NoteRecord[];
   getNoteById(id: string): NoteRecord | undefined;
   getNoteByTitle(title: string): NoteRecord | undefined;
@@ -15,19 +15,19 @@ export interface VaultIndex {
   getRelationshipTypes(): string[];
   updateNote(record: NoteRecord): void;
   removeByPath(relativePath: string): void;
-  addOrRefresh(absolutePath: string): Promise<NoteRecord>;
+  addOrRefresh(vaultFS: VaultFS, relativePath: string): Promise<NoteRecord>;
 }
 
-export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
+export async function buildVaultIndex(vaultFS: VaultFS): Promise<VaultIndex> {
   const byId = new Map<string, NoteRecord>();
   const byTitle = new Map<string, NoteRecord>();
   const byPath = new Map<string, NoteRecord>();
 
-  const paths = await scanVault(vaultRoot);
+  const paths = await scanVault(vaultFS);
   await Promise.all(
-    paths.map(async (absPath) => {
+    paths.map(async (relPath) => {
       try {
-        const record = await parseNote(absPath, vaultRoot);
+        const record = await parseNote(vaultFS, relPath);
         indexRecord(record, byId, byTitle, byPath);
       } catch {
         // Skip unreadable files silently
@@ -47,8 +47,6 @@ export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
   }
 
   return {
-    vaultRoot,
-
     getAllNotes(): NoteRecord[] {
       return [...byId.values()];
     },
@@ -100,12 +98,12 @@ export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
       byPath.delete(relativePath);
     },
 
-    async addOrRefresh(absolutePath: string): Promise<NoteRecord> {
+    async addOrRefresh(vaultFS: VaultFS, relativePath: string): Promise<NoteRecord> {
       // Conflict copies must never enter the note index
-      if (basename(absolutePath).includes(SYNCTHING_CONFLICT_INFIX)) {
-        throw new Error(`Refusing to index conflict file: ${absolutePath}`);
+      if (posixBasename(relativePath).includes(SYNCTHING_CONFLICT_INFIX)) {
+        throw new Error(`Refusing to index conflict file: ${relativePath}`);
       }
-      const record = await parseNote(absolutePath, vaultRoot);
+      const record = await parseNote(vaultFS, relativePath);
       const existing = byPath.get(record.path);
       if (existing && existing.id !== record.id) {
         byId.delete(existing.id);
@@ -115,8 +113,4 @@ export async function buildVaultIndex(vaultRoot: string): Promise<VaultIndex> {
       return record;
     },
   };
-}
-
-export function absolutePath(vaultRoot: string, relativePath: string): string {
-  return join(vaultRoot, relativePath);
 }

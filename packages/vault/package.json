@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@notes-app/common": "workspace:*",
+    "@notes-app/sync": "workspace:*",
     "chokidar": "^4.0.3"
   },
   "devDependencies": {

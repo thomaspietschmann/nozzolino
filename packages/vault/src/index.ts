@@ -5,3 +5,5 @@ export * from './VaultIndex.js';
 export * from './VaultWatcher.js';
 export * from './atomicWrite.js';
 export * from './saveNote.js';
+export * from './vaultOps.js';
+export * from './MemoryVaultFS.js';

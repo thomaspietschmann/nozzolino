@@ -24,3 +24,5 @@ export type { SyntaxHighlightLanguage, AccentPresetKey, IpcChannel } from './con
 export { parseFrontmatter, serializeFrontmatter } from './frontmatter.js';
 
 export { WIKILINK_REGEX, parseWikiLinks, replaceWikiLinkTarget } from './wikilinks.js';
+
+export { posixJoin, posixDirname, posixBasename } from './posixPath.js';

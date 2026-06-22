@@ -1,21 +1,40 @@
-import { join, relative, basename, dirname } from 'path';
-import { promises as fs } from 'fs';
+import { relative, basename } from 'path';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
-import { IPC, replaceWikiLinkTarget, parseFrontmatter, serializeFrontmatter } from '@notes-app/common';
-import type { Frontmatter, ConflictRecord } from '@notes-app/common';
-import { buildVaultIndex, watchVault, atomicWrite, mergeForSave } from '@notes-app/vault';
-import type { VaultIndex, VaultWatcher } from '@notes-app/vault';
-import { isConflictFile, primaryPathForConflict, makeConflictFilename } from '@notes-app/sync';
+import { IPC } from '@notes-app/common';
+import type { NoteRecord, ConflictRecord } from '@notes-app/common';
+import {
+  buildVaultIndex,
+  watchVault,
+  NodeVaultFS,
+  scanExistingConflicts,
+  writeNote,
+  createNote,
+  renameNote,
+  updateFrontmatter as updateFrontmatterOp,
+  deleteNote,
+  saveImage as saveImageOp,
+  resolveConflict as resolveConflictOp,
+  createConflictFromExternal as createConflictFromExternalOp,
+  propagateRename,
+} from '@notes-app/vault';
+import type { VaultIndex, VaultWatcher, VaultOpsContext } from '@notes-app/vault';
+import { isConflictFile, primaryPathForConflict } from '@notes-app/sync';
 import archiver from 'archiver';
 
 let currentVaultRoot: string | null = null;
+let vaultFS: NodeVaultFS | null = null;
 let vaultIndex: VaultIndex | null = null;
 let watcher: VaultWatcher | null = null;
 
 // Pending unlinks: id → { title, relativePath, timer } — used to correlate rename pairs
 const pendingUnlinks = new Map<string, { title: string; relativePath: string; timer: ReturnType<typeof setTimeout> }>();
 const RENAME_WINDOW_MS = 2000;
+
+function getCtx(): VaultOpsContext {
+  if (!vaultFS || !vaultIndex) throw new Error('No vault open');
+  return { vaultFS, index: vaultIndex, generateId: () => crypto.randomUUID() };
+}
 
 export function getVaultRoot() {
   return currentVaultRoot;
@@ -26,14 +45,14 @@ export function getIndex() {
 }
 
 export async function openVault(vaultPath: string, win: BrowserWindow) {
-  // Close previous watcher
   await watcher?.close();
 
   currentVaultRoot = vaultPath;
-  vaultIndex = await buildVaultIndex(vaultPath);
+  vaultFS = new NodeVaultFS(vaultPath);
+  vaultIndex = await buildVaultIndex(vaultFS);
 
   watcher = watchVault(vaultPath, async (event, absolutePath) => {
-    if (!vaultIndex) return;
+    if (!vaultIndex || !vaultFS) return;
     const relativePath = relative(vaultPath, absolutePath);
     const name = basename(absolutePath);
 
@@ -43,13 +62,10 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
         return;
       }
 
-      // Hold for RENAME_WINDOW_MS before treating as a true delete.
-      // If an 'add' with the same id arrives within the window, it's an external rename.
       const existingRecord = vaultIndex.getNoteByPath(relativePath);
       if (existingRecord) {
         const id = existingRecord.id;
         const timer = setTimeout(() => {
-          // Window expired — treat as genuine delete
           pendingUnlinks.delete(id);
           vaultIndex?.removeByPath(relativePath);
           win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath });
@@ -63,21 +79,25 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
     }
 
     if (isConflictFile(name)) {
-      const conflictRecord = buildConflictRecord(relativePath, absolutePath, vaultIndex, vaultPath);
-      win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, conflictRecord);
+      const primaryRelPath = primaryPathForConflict(relativePath) ?? relativePath;
+      const note = vaultIndex.getNoteByPath(primaryRelPath);
+      win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, {
+        noteId: note?.id ?? '',
+        notePath: primaryRelPath,
+        conflictFilePath: relativePath,
+        detectedAt: new Date(),
+      } satisfies ConflictRecord);
       return;
     }
 
     try {
-      const record = await vaultIndex.addOrRefresh(absolutePath);
+      const record = await vaultIndex.addOrRefresh(vaultFS, relativePath);
       const pending = pendingUnlinks.get(record.id);
       if (pending) {
-        // Matched an earlier unlink — this is an external rename
         clearTimeout(pending.timer);
         pendingUnlinks.delete(record.id);
         vaultIndex.removeByPath(pending.relativePath);
-        // Rewrite wikilinks in all notes that reference the old title
-        const propagated = await propagateRename(pending.title, record.title);
+        const propagated = await propagateRename(getCtx(), pending.title, record.title);
         win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'unlink', relativePath: pending.relativePath });
         win.webContents.send(IPC.VAULT_FILE_CHANGED, { event: 'add', relativePath, record });
         for (const updated of propagated) {
@@ -92,262 +112,80 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
   });
 
   // Surface any conflict files that already existed when the vault was opened
-  await scanExistingConflicts(vaultPath, vaultIndex, win);
+  const conflicts = await scanExistingConflicts(getCtx());
+  for (const { record } of conflicts) {
+    win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, record);
+  }
 
   return vaultIndex.getAllNotes();
 }
 
 export async function readFile(relativePath: string): Promise<string> {
-  if (!currentVaultRoot) throw new Error('No vault open');
-  return fs.readFile(join(currentVaultRoot, relativePath), 'utf-8');
+  if (!vaultFS) throw new Error('No vault open');
+  return vaultFS.readFile(relativePath);
 }
 
 export async function writeFile(relativePath: string, body: string): Promise<void> {
-  if (!currentVaultRoot) throw new Error('No vault open');
-  const absPath = join(currentVaultRoot, relativePath);
-
-  // Read existing file so we can preserve/merge frontmatter (ADR-0006).
-  let rawExisting: string | null = null;
-  try {
-    rawExisting = await fs.readFile(absPath, 'utf-8');
-  } catch {
-    // File does not exist yet — mergeForSave handles null gracefully.
-  }
-
-  // Use the in-memory id already held in the index (generated by NoteParser on first
-  // load) so the UUID is stable across reloads even before the first explicit save.
-  const inMemoryId = vaultIndex?.getNoteByPath(relativePath)?.id ?? crypto.randomUUID();
-  const merged = mergeForSave(rawExisting, body, { id: inMemoryId });
-
-  await atomicWrite(absPath, merged);
-  if (vaultIndex) {
-    await vaultIndex.addOrRefresh(absPath);
-  }
+  await writeNote(getCtx(), relativePath, body);
 }
 
-export async function createFile(title: string) {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const fileName = `${title.replace(/[/\\:*?"<>|]/g, '-')}.md`;
-  const absPath = join(currentVaultRoot, fileName);
-
-  // Write frontmatter immediately so the note has a stable id and created date
-  // from the very first save (ADR-0006).
-  const now = new Date().toISOString();
-  const fm: Frontmatter = { id: crypto.randomUUID(), tags: [], created: now, modified: now };
-  const content = serializeFrontmatter(fm, `# ${title}\n\n`);
-
-  await atomicWrite(absPath, content);
-  return vaultIndex.addOrRefresh(absPath);
+export async function createFile(title: string): Promise<NoteRecord> {
+  return createNote(getCtx(), title);
 }
 
 export async function renameFile(
   relativePath: string,
-  newTitle: string
-): Promise<{ renamed: import('@notes-app/common').NoteRecord; propagated: import('@notes-app/common').NoteRecord[] }> {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const oldAbs = join(currentVaultRoot, relativePath);
-  const oldTitle = basename(relativePath, '.md');
-  const newFileName = `${newTitle.replace(/[/\\:*?"<>|]/g, '-')}.md`;
-  const newAbs = join(dirname(oldAbs), newFileName);
-
-  await fs.rename(oldAbs, newAbs);
-  vaultIndex.removeByPath(relativePath);
-  const renamed = await vaultIndex.addOrRefresh(newAbs);
-
-  // Propagate rename in all notes that link to the old title (ADR-0009)
-  const propagated = await propagateRename(oldTitle, newTitle);
-
-  return { renamed, propagated };
+  newTitle: string,
+): Promise<{ renamed: NoteRecord; propagated: NoteRecord[] }> {
+  return renameNote(getCtx(), relativePath, newTitle);
 }
 
-async function propagateRename(
-  oldTitle: string,
-  newTitle: string
-): Promise<import('@notes-app/common').NoteRecord[]> {
-  if (!currentVaultRoot || !vaultIndex) return [];
-
-  const notesWithLink = vaultIndex
-    .getAllNotes()
-    .filter((n) => n.outlinks.some((l) => l.targetTitle.toLowerCase() === oldTitle.toLowerCase()));
-
-  const updated = await Promise.all(
-    notesWithLink.map(async (note) => {
-      const absPath = join(currentVaultRoot!, note.path);
-      try {
-        const content = await fs.readFile(absPath, 'utf-8');
-        const replaced = replaceWikiLinkTarget(content, oldTitle, newTitle);
-        if (replaced !== content) {
-          await atomicWrite(absPath, replaced);
-          return vaultIndex!.addOrRefresh(absPath);
-        }
-      } catch {
-        // File may have been deleted concurrently — skip
-      }
-      return null;
-    })
-  );
-
-  return updated.filter((r): r is import('@notes-app/common').NoteRecord => r !== null);
-}
-
-/**
- * Applies a partial frontmatter patch to a note without changing its body.
- * Used for tag editing and similar in-panel operations.
- */
 export async function updateFrontmatter(
   relativePath: string,
-  patch: Partial<{ tags: string[]; emoji: string | null }>
-): Promise<import('@notes-app/common').NoteRecord> {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const absPath = join(currentVaultRoot, relativePath);
-
-  const raw = await fs.readFile(absPath, 'utf-8');
-  const { frontmatter, body } = parseFrontmatter(raw);
-
-  // Merge patch — filter out undefined/null values that should be removed.
-  const merged = { ...frontmatter };
-  if (patch.tags !== undefined) merged.tags = [...new Set(patch.tags)];
-  if (patch.emoji !== undefined) merged.emoji = patch.emoji ?? undefined;
-  merged.modified = new Date().toISOString();
-
-  await atomicWrite(absPath, serializeFrontmatter(merged, body));
-  return vaultIndex.addOrRefresh(absPath);
+  patch: Partial<{ tags: string[]; emoji: string | null }>,
+): Promise<NoteRecord> {
+  return updateFrontmatterOp(getCtx(), relativePath, patch);
 }
 
 export async function deleteFile(relativePath: string): Promise<void> {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const absPath = join(currentVaultRoot, relativePath);
-  await fs.unlink(absPath);
-  vaultIndex.removeByPath(relativePath);
+  return deleteNote(getCtx(), relativePath);
 }
 
 export async function saveImage(
   base64: string,
   ext: string,
-  activeRelativePath: string
+  activeRelativePath: string,
 ): Promise<string> {
-  if (!currentVaultRoot) throw new Error('No vault open');
-
-  // Sibling folder convention (ADR-0005): <note-stem>/<uuid>.<ext>
-  const noteStem = basename(activeRelativePath, '.md');
-  const noteDir = dirname(join(currentVaultRoot, activeRelativePath));
-  const siblingDir = join(noteDir, noteStem);
-
-  await fs.mkdir(siblingDir, { recursive: true });
-  const fileName = `${crypto.randomUUID()}.${ext}`;
-  const absPath = join(siblingDir, fileName);
-  await fs.writeFile(absPath, Buffer.from(base64, 'base64'));
-
-  // Return path relative to vault root for use in Markdown
-  return relative(currentVaultRoot, absPath);
+  return saveImageOp(getCtx(), base64, ext, activeRelativePath);
 }
 
-export async function closeVault() {
+export async function closeVault(): Promise<void> {
   for (const { timer } of pendingUnlinks.values()) clearTimeout(timer);
   pendingUnlinks.clear();
   await watcher?.close();
   watcher = null;
   vaultIndex = null;
+  vaultFS = null;
   currentVaultRoot = null;
 }
 
-// ─── Conflict helpers ─────────────────────────────────────────────────────────
-
-function buildConflictRecord(
-  conflictRelPath: string,
-  _absolutePath: string,
-  index: VaultIndex,
-  _vaultRoot: string,
-): ConflictRecord {
-  const primaryRelPath = primaryPathForConflict(conflictRelPath) ?? conflictRelPath;
-  const note = index.getNoteByPath(primaryRelPath);
-  return {
-    noteId: note?.id ?? '',
-    notePath: primaryRelPath,
-    conflictFilePath: conflictRelPath,
-    detectedAt: new Date(),
-  };
-}
-
-async function scanExistingConflicts(
-  vaultRoot: string,
-  index: VaultIndex,
-  win: BrowserWindow,
-): Promise<void> {
-  async function walk(dir: string): Promise<void> {
-    let entries;
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const fullPath = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith('.md') && isConflictFile(entry.name)) {
-        const relPath = relative(vaultRoot, fullPath);
-        const record = buildConflictRecord(relPath, fullPath, index, vaultRoot);
-        win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, record);
-      }
-    }
-  }
-  await walk(vaultRoot);
-}
-
-/**
- * Resolves a conflict: writes the merged content atomically to the primary path,
- * refreshes the index, then deletes the conflict file.
- * Returns the refreshed NoteRecord for the primary note.
- */
 export async function resolveConflict(
   notePath: string,
   conflictFilePath: string,
   mergedContent: string,
-): Promise<import('@notes-app/common').NoteRecord> {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const primaryAbs = join(currentVaultRoot, notePath);
-  const conflictAbs = join(currentVaultRoot, conflictFilePath);
-
-  // Write the user-approved merged content verbatim (bypass mergeForSave — user controls content)
-  await atomicWrite(primaryAbs, mergedContent);
-  const record = await vaultIndex.addOrRefresh(primaryAbs);
-  await fs.unlink(conflictAbs);
-  return record;
+): Promise<NoteRecord> {
+  return resolveConflictOp(getCtx(), notePath, conflictFilePath, mergedContent);
 }
 
-/**
- * Saves the current on-disk primary content as a Syncthing-style conflict file
- * (ADR-0010 Case 2: external change arrives while local edits are unsaved).
- * Returns a ConflictRecord pointing at the new conflict copy.
- */
 export async function createConflictFromExternal(
   notePath: string,
   timestamp: string,
 ): Promise<ConflictRecord> {
-  if (!currentVaultRoot || !vaultIndex) throw new Error('No vault open');
-  const primaryAbs = join(currentVaultRoot, notePath);
-  const primaryStem = basename(notePath, '.md');
-  const conflictFilename = makeConflictFilename(primaryStem, timestamp);
-  const conflictAbs = join(dirname(primaryAbs), conflictFilename);
-  const conflictRelPath = relative(currentVaultRoot, conflictAbs);
-
-  const externalContent = await fs.readFile(primaryAbs, 'utf-8');
-  await atomicWrite(conflictAbs, externalContent);
-
-  const note = vaultIndex.getNoteByPath(notePath);
-  return {
-    noteId: note?.id ?? '',
-    notePath,
-    conflictFilePath: conflictRelPath,
-    detectedAt: new Date(),
-  };
+  return createConflictFromExternalOp(getCtx(), notePath, timestamp);
 }
 
 /**
  * Opens a save dialog and exports the entire vault as a ZIP file.
- * Skips dot-files/dirs and .tmp files.
  * Returns the saved path or null if the user cancelled.
  */
 export async function exportZip(win: BrowserWindow): Promise<string | null> {
@@ -371,10 +209,7 @@ export async function exportZip(win: BrowserWindow): Promise<string | null> {
 
     archive.glob('**/*', {
       cwd: currentVaultRoot!,
-      ignore: [
-        '.*',      // dot-files and dot-dirs
-        '**/*.tmp', // temp files from atomicWrite
-      ],
+      ignore: ['.*', '**/*.tmp'],
       dot: false,
     });
 

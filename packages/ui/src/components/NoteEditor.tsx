@@ -3,6 +3,7 @@ import { EditorView, TextSelection, createEditorState, toMarkdown } from '@notes
 import type { CreateEditorStateOptions, SaveImageFn } from '@notes-app/editor';
 import { AUTOSAVE_DEBOUNCE_MS } from '@notes-app/common';
 import { useStore } from '../store.js';
+import { ipc } from '../ipc.js';
 
 interface NoteEditorProps {
   content: string;
@@ -42,10 +43,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = (reader.result as string).split(',')[1] ?? '';
-          window.electronAPI
-            .invoke<string>('image:save', base64, ext, activePath)
-            .then(resolve)
-            .catch(reject);
+          ipc.saveImage(base64, ext, activePath).then(resolve).catch(reject);
         };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
