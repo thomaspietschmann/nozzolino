@@ -28,20 +28,15 @@ corepack install -g pnpm@9
 # 1. Install all dependencies
 pnpm install
 
-# 2. Check types (TypeScript strict mode)
-pnpm typecheck
+# 2. Launch the desktop app in development mode
+pnpm --filter @notes-app/desktop dev
 
-# 3. Check code style
-pnpm lint
-
-# 4. Run tests
-pnpm test
-
-# 5. Build all packages
-pnpm build
+# 3. (Optional) Run checks
+pnpm typecheck   # TypeScript strict mode
+pnpm lint        # ESLint
+pnpm test        # Vitest unit tests
+pnpm build       # Build all packages
 ```
-
-All four commands should complete without errors on a fresh clone.
 
 ---
 
@@ -64,8 +59,8 @@ notes-app/
 └── docs/               Architecture decisions (ADRs), user stories, roadmap
 ```
 
-Items marked with a milestone (e.g. `M1`) are planned but not yet built.
 See [`docs/roadmap.md`](docs/roadmap.md) for the full build plan.
+Milestones M0 (foundation) and M1 (desktop editor) are complete.
 
 ---
 
@@ -81,5 +76,7 @@ See [`docs/roadmap.md`](docs/roadmap.md) for the full build plan.
 
 This is a personal-use project. There is no contribution process.
 
-The app is not yet runnable end-to-end — M0 (this milestone) sets up the monorepo
-foundation and the `packages/common` utilities. The desktop app shell follows in M1.
+To run the app: `pnpm --filter @notes-app/desktop dev` — opens an Electron window.
+Select a folder containing Markdown files (or an empty folder) to start editing.
+
+Notes are saved as plain `.md` files. No database, no lock-in.
