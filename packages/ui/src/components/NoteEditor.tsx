@@ -148,8 +148,8 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
       view.destroy();
       viewRef.current = null;
     };
-    // noteId triggers full re-mount; pendingScrollTerm is consumed here
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // noteId triggers full re-mount; other deps (handleSave, opts, pendingScrollTerm)
+    // are intentionally omitted — they are read via refs at call time.
   }, [noteId]);
 
   // Update content if it changes from outside (e.g. watcher reload).
