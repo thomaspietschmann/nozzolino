@@ -39,22 +39,37 @@ export function registerIpcHandlers(win: BrowserWindow) {
   });
 
   ipcMain.handle(IPC.FILE_RENAME, async (_event, relativePath: string, newTitle: string) => {
-    return vault.renameFile(relativePath, newTitle);
+    const { renamed, propagated } = await vault.renameFile(relativePath, newTitle);
+    return { renamed, propagated };
   });
 
   ipcMain.handle(IPC.FILE_DELETE, async (_event, relativePath: string) => {
     await vault.deleteFile(relativePath);
   });
 
+  // ─── Frontmatter patch ───────────────────────────────────────────────────
+  ipcMain.handle(
+    IPC.FILE_UPDATE_FRONTMATTER,
+    async (
+      _event,
+      relativePath: string,
+      patch: Partial<{ tags: string[]; emoji: string | null }>
+    ) => {
+      return vault.updateFrontmatter(relativePath, patch);
+    }
+  );
+
   // ─── Backlinks ───────────────────────────────────────────────────────────
   ipcMain.handle(IPC.VAULT_GET_BACKLINKS, async (_event, noteId: string) => {
     return vault.getIndex()?.getBacklinks(noteId) ?? [];
   });
 
+  ipcMain.handle(IPC.VAULT_GET_RELATIONSHIP_TYPES, async () => {
+    return vault.getIndex()?.getRelationshipTypes() ?? [];
+  });
+
   // ─── Image ───────────────────────────────────────────────────────────────
-  ipcMain.handle(IPC.IMAGE_SAVE, async (_event, base64: string, ext: string) => {
-    const activeNote = vault.getIndex()?.getAllNotes()[0];
-    const activePath = activeNote?.path ?? 'untitled.md';
-    return vault.saveImage(base64, ext, activePath);
+  ipcMain.handle(IPC.IMAGE_SAVE, async (_event, base64: string, ext: string, activePath: string) => {
+    return vault.saveImage(base64, ext, activePath || 'untitled.md');
   });
 }

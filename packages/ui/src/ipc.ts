@@ -38,16 +38,27 @@ export const ipc = {
     return window.electronAPI.invoke<NoteRecord>(IPC.FILE_CREATE, title);
   },
 
-  renameFile(relativePath: string, newTitle: string): Promise<NoteRecord> {
-    return window.electronAPI.invoke<NoteRecord>(IPC.FILE_RENAME, relativePath, newTitle);
+  renameFile(relativePath: string, newTitle: string): Promise<{ renamed: NoteRecord; propagated: NoteRecord[] }> {
+    return window.electronAPI.invoke<{ renamed: NoteRecord; propagated: NoteRecord[] }>(IPC.FILE_RENAME, relativePath, newTitle);
   },
 
   deleteFile(relativePath: string): Promise<void> {
     return window.electronAPI.invoke<void>(IPC.FILE_DELETE, relativePath);
   },
 
-  saveImage(base64: string, ext: string): Promise<string> {
-    return window.electronAPI.invoke<string>(IPC.IMAGE_SAVE, base64, ext);
+  saveImage(base64: string, ext: string, activePath: string): Promise<string> {
+    return window.electronAPI.invoke<string>(IPC.IMAGE_SAVE, base64, ext, activePath);
+  },
+
+  updateFrontmatter(
+    relativePath: string,
+    patch: Partial<{ tags: string[]; emoji: string | null }>
+  ): Promise<NoteRecord> {
+    return window.electronAPI.invoke<NoteRecord>(IPC.FILE_UPDATE_FRONTMATTER, relativePath, patch);
+  },
+
+  getRelationshipTypes(): Promise<string[]> {
+    return window.electronAPI.invoke<string[]>(IPC.VAULT_GET_RELATIONSHIP_TYPES);
   },
 
   getBacklinks(noteId: string): Promise<NoteRecord[]> {

@@ -13,7 +13,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { saveNote, setDirty, notes, createNote } = useStore();
+  const { saveNote, setDirty, notes, createNote, relationshipTypes } = useStore();
 
   const handleSave = useCallback(
     (markdown: string) => {
@@ -22,20 +22,24 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     [saveNote]
   );
 
-  const saveImage: SaveImageFn = useCallback(async (blob: Blob, ext: string) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1] ?? '';
-        window.electronAPI
-          .invoke<string>('image:save', base64, ext)
-          .then(resolve)
-          .catch(reject);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  }, []);
+  const saveImage: SaveImageFn = useCallback(
+    async (blob: Blob, ext: string) => {
+      const activePath = notes.find((n) => n.id === noteId)?.path ?? '';
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1] ?? '';
+          window.electronAPI
+            .invoke<string>('image:save', base64, ext, activePath)
+            .then(resolve)
+            .catch(reject);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    },
+    [notes, noteId]
+  );
 
   // Create or destroy the view when the note changes
   useEffect(() => {
@@ -54,10 +58,16 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     const isResolved = (title: string) =>
       notes.some((n) => n.title.toLowerCase() === title.toLowerCase());
 
+    const getTypeSuggestions = (query: string) => {
+      const lower = query.toLowerCase();
+      return relationshipTypes.filter((t) => t.toLowerCase().includes(lower));
+    };
+
     const state = createEditorState({
       content,
       saveImage,
       getSuggestions,
+      getTypeSuggestions,
       isResolved,
       onCreateNote: (title) => void createNote(title),
     });
