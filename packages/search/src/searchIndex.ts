@@ -142,6 +142,20 @@ export function stripMarkdown(text: string): string {
   );
 }
 
+// ─── Deserialise ─────────────────────────────────────────────────────────────
+
+/**
+ * Reconstruct a `SearchIndex` from a serialised lunr JSON blob (produced by
+ * `idx.toJSON()` inside the index Web Worker) and the original records array.
+ * Called on the main thread after the worker posts back the serialised index.
+ */
+export function loadIndexFromJson(records: NoteRecord[], idxJson: object): SearchIndex {
+  return {
+    idx: lunr.Index.load(idxJson),
+    notes: new Map(records.map((n) => [n.id, n])),
+  };
+}
+
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
 
 /** Return all distinct tags used across the vault, sorted alphabetically. */

@@ -2,6 +2,11 @@ import chokidar from 'chokidar';
 
 export type WatchEvent = 'add' | 'change' | 'unlink';
 
+/**
+ * NOTE: Desktop's chokidar-backed `watchVault` passes **absolute** paths to
+ * the handler. Mobile's `CapacitorWatcher` (mtime poll) uses **vault-relative
+ * POSIX** paths instead — matching every VaultIndex / vaultOps API.
+ */
 export interface WatchHandler {
   (event: WatchEvent, absolutePath: string): void;
 }

@@ -14,8 +14,10 @@ import {
   type VaultFS,
 } from '@notes-app/vault';
 import type { NoteRecord } from '@notes-app/common';
+import { sha1Hex } from '@notes-app/common';
 import { WebVaultFS } from '../fs/WebVaultFS.js';
 import { CapacitorVaultFS, NativeVaultPlugin } from '../fs/CapacitorVaultFS.js';
+import { watchVaultByPoll, type CapacitorWatcher } from '../fs/CapacitorWatcher.js';
 
 interface FileChangedEvent {
   event: 'add' | 'change' | 'unlink';
@@ -116,6 +118,14 @@ This note is linked from [[Welcome]].
 
 let vaultFS: VaultFS | null = null;
 let index: VaultIndex | null = null;
+/** Active poll watcher (native only). Closed and replaced on each vault:open. */
+let watcher: CapacitorWatcher | null = null;
+/**
+ * Self-write SHA-1 registry — mirrors vaultManager.ts `selfWriteHashes`.
+ * Populated by VaultOpsContext.onDidWrite; read by CapacitorWatcher to
+ * suppress echoes of the app's own mutations.
+ */
+const selfWriteHashes = new Map<string, string>();
 
 // Registered event handlers: channel → Set of handler functions
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -134,8 +144,11 @@ function getCtx(): VaultOpsContext {
     vaultFS,
     index,
     generateId: () => crypto.randomUUID(),
-    // Single-device: no self-write suppression needed (no watcher on mobile in M6.2)
-    onDidWrite: undefined,
+    // Record a SHA-1 of every app write so CapacitorWatcher can distinguish
+    // own echoes from real external changes (e.g. Syncthing).
+    onDidWrite: (relPath: string, content: string) => {
+      selfWriteHashes.set(relPath, sha1Hex(content));
+    },
   };
 }
 
@@ -187,6 +200,15 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
       }
 
       index = await buildVaultIndex(vaultFS);
+
+      // (Re-)start the poll watcher on native only.
+      // Close any previous watcher and clear the self-write registry first.
+      if (watcher) { watcher.close(); watcher = null; }
+      selfWriteHashes.clear();
+      if (Capacitor.isNativePlatform()) {
+        watcher = watchVaultByPoll(vaultFS, index, emit, selfWriteHashes);
+      }
+
       return index.getAllNotes();
     }
 

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8",
+    "@capacitor/app": "^8",
     "@capacitor/core": "^8",
     "@notes-app/common": "workspace:*",
     "@notes-app/editor": "workspace:*",

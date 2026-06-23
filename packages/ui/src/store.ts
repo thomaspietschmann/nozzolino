@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { NoteRecord, AccentPresetKey, SyncStatus, ConflictRecord } from '@notes-app/common';
 import { ACCENT_PRESETS, SEARCH_DEBOUNCE_MS, parseFrontmatter } from '@notes-app/common';
-import { buildIndex, search, filterByTags } from '@notes-app/search';
+import { search, filterByTags } from '@notes-app/search';
 import type { SearchIndex } from '@notes-app/search';
+import { buildIndexAsync } from './search/buildIndexAsync.js';
 import type { SearchResult } from '@notes-app/common';
 import { ipc } from './ipc.js';
 
@@ -98,6 +99,8 @@ export interface AppState {
 
 let searchIdx: SearchIndex | null = null;
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+/** Monotonic counter — only the latest async build win. */
+let buildGeneration = 0;
 /** Imperative flush registered by NoteEditor. */
 let editorFlush: (() => Promise<void>) | null = null;
 
@@ -137,8 +140,8 @@ export const useStore = create<AppState>((set, get) => ({
   async openVault(path: string) {
     const records = await ipc.openVault(path);
     const relTypes = await ipc.getRelationshipTypes();
-    // Build the search index immediately on vault open
-    searchIdx = buildIndex(records);
+    // Clear stale index immediately — runSearch returns [] until the new one is ready.
+    searchIdx = null;
     set({
       vaultRoot: path,
       notes: records,
@@ -147,6 +150,11 @@ export const useStore = create<AppState>((set, get) => ({
       activeNoteContent: null,
       searchQuery: '',
       selectedTags: [],
+    });
+    // Build off the main thread (Worker or sync fallback in Node/test).
+    const gen = ++buildGeneration;
+    buildIndexAsync(records).then((idx) => {
+      if (gen === buildGeneration) searchIdx = idx;
     });
   },
 
@@ -408,7 +416,10 @@ useStore.subscribe((state, prev) => {
   if (state.notes === prev.notes) return;
   if (rebuildTimer) clearTimeout(rebuildTimer);
   rebuildTimer = setTimeout(() => {
-    searchIdx = buildIndex(state.notes);
+    const gen = ++buildGeneration;
+    buildIndexAsync(state.notes).then((idx) => {
+      if (gen === buildGeneration) searchIdx = idx;
+    });
   }, SEARCH_DEBOUNCE_MS);
 });
 
