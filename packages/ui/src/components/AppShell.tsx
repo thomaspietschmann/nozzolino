@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../store.js';
+import { useEdgeSwipe } from '../hooks/useEdgeSwipe.js';
 import { Sidebar } from './Sidebar.js';
 import { NoteHeader } from './NoteHeader.js';
 import { NoteEditor } from './NoteEditor.js';
@@ -38,7 +39,16 @@ export function AppShell() {
     toggleHelp,
     setHelpOpen,
     createNote,
+    sidebarOpen,
+    setSidebarOpen,
   } = useStore();
+
+  // Edge-swipe: right-from-edge opens drawer, left swipe closes — mobile only.
+  useEdgeSwipe({
+    isOpen: sidebarOpen,
+    onOpen: () => setSidebarOpen(true),
+    onClose: () => setSidebarOpen(false),
+  });
 
   // Subscribe to file watcher events from main process
   useEffect(() => {
@@ -143,9 +153,30 @@ export function AppShell() {
       <CommandPalette />
       <HelpOverlay />
       {activeConflict && <ConflictResolver />}
+
+      {/* Mobile backdrop scrim — tapping it closes the drawer */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden
+        />
+      )}
+
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile top bar with hamburger — hidden on desktop */}
+        <div className="md:hidden flex items-center h-12 shrink-0 px-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+          <button
+            aria-label="Open sidebar"
+            data-testid="sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xl leading-none"
+          >
+            ☰
+          </button>
+        </div>
         {activeNoteId && activeNoteContent !== null ? (
           <>
             <NoteHeader noteId={activeNoteId} />

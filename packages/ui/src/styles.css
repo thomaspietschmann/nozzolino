@@ -94,6 +94,9 @@
 .wikilink {
   @apply text-accent cursor-pointer rounded px-0.5 transition-colors;
   background: rgb(var(--accent) / 0.08);
+  /* Prevent Android native text-selection callout from stealing the long-press gesture */
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .wikilink:hover {
   background: rgb(var(--accent) / 0.18);

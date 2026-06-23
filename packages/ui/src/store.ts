@@ -62,6 +62,7 @@ export interface AppState {
   toggleConflictsPanel: () => void;
   resolveConflict: (conflict: ConflictRecord, mergedContent: string) => Promise<void>;
   setSidebarOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setAccent: (accent: AccentPresetKey) => void;
   setTags: (noteId: string, tags: string[]) => Promise<void>;
@@ -112,7 +113,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeNoteId: null,
   activeNoteContent: null,
   isDirty: false,
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' && window.innerWidth >= 768,
   theme: savedTheme,
   accent: savedAccent,
   showFrontmatterPanel: false,
@@ -278,6 +279,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSidebarOpen(open: boolean) {
     set({ sidebarOpen: open });
+  },
+
+  toggleSidebar() {
+    set((s) => ({ sidebarOpen: !s.sidebarOpen }));
   },
 
   setTheme(theme: 'dark' | 'light') {

@@ -42,7 +42,7 @@ function formatMonthLabel(yyyyMM: string): string {
 }
 
 export function MonthBrowser({ notes }: MonthBrowserProps) {
-  const { activeNoteId, selectNote } = useStore();
+  const { activeNoteId, selectNote, setSidebarOpen } = useStore();
   const groups = groupByMonth(notes);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -85,7 +85,11 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
                       : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                   style={{ width: 'calc(100% - 8px)' }}
-                  onClick={() => void selectNote(note.id)}
+                  onClick={() => {
+                    void selectNote(note.id);
+                    // Auto-close drawer on mobile after selecting a note
+                    if (window.innerWidth < 768) setSidebarOpen(false);
+                  }}
                 >
                   {note.emoji && <span className="shrink-0">{note.emoji}</span>}
                   <span className="truncate flex-1">{note.title}</span>

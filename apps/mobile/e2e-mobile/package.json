@@ -1,0 +1,24 @@
+{
+  "name": "@notes-app/mobile-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Appium / WebdriverIO end-to-end tests for the Notes Android app",
+  "scripts": {
+    "test": "wdio run wdio.conf.ts",
+    "test:gestures": "wdio run wdio.conf.ts --spec tests/gestures.e2e.ts"
+  },
+  "devDependencies": {
+    "@wdio/appium-service": "^9.0.0",
+    "@wdio/cli": "^9.0.0",
+    "@wdio/local-runner": "^9.0.0",
+    "@wdio/mocha-framework": "^9.0.0",
+    "@wdio/spec-reporter": "^9.0.0",
+    "@types/mocha": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "webdriverio": "^9.0.0"
+  },
+  "dependencies": {
+    "appium": "^2.11.0"
+  }
+}

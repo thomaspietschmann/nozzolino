@@ -85,7 +85,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({ notes }: FileTreeProps) {
-  const { activeNoteId, selectNote, deleteNote } = useStore();
+  const { activeNoteId, selectNote, deleteNote, setSidebarOpen } = useStore();
   const [contextMenu, setContextMenu] = useState<{ noteId: string; x: number; y: number } | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -200,7 +200,11 @@ export function FileTree({ notes }: FileTreeProps) {
                 ? 'bg-accent/20 text-zinc-900 dark:text-white'
                 : `text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white${isFocused ? ' ring-1 ring-inset ring-accent/50' : ''}`
             }`}
-            onClick={() => void selectNote(note.id)}
+            onClick={() => {
+              void selectNote(note.id);
+              // Auto-close drawer on mobile after selecting a note
+              if (window.innerWidth < 768) setSidebarOpen(false);
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               setContextMenu({ noteId: note.id, x: e.clientX, y: e.clientY });
