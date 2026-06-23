@@ -27,6 +27,9 @@ export const config: Options.Testrunner = {
         args: {
           relaxedSecurity: true,
         },
+        // ANDROID_HOME must be in the process environment before running:
+        //   export ANDROID_HOME=~/Library/Android/sdk
+        // The package.json test scripts inject this automatically.
         logFileName: 'appium.log',
         outputDir: __dirname,
       },

@@ -45,6 +45,7 @@ export function VaultOpenScreen() {
         <button
           onClick={() => void handleOpen()}
           disabled={loading}
+          data-testid="open-vault-btn"
           className="w-full py-3 rounded-xl bg-accent/80 hover:bg-accent text-white font-semibold transition-colors disabled:opacity-50"
         >
           {loading ? 'Opening…' : 'Open vault folder'}

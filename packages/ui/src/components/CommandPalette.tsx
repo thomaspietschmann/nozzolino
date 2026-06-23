@@ -142,6 +142,7 @@ export function CommandPalette() {
           <input
             ref={inputRef}
             type="text"
+            data-testid="palette-input"
             placeholder="Search notes… (Ctrl+K)"
             className="flex-1 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none text-sm"
             value={searchQuery}

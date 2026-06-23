@@ -4,8 +4,8 @@
   "private": true,
   "description": "Appium / WebdriverIO end-to-end tests for the Notes Android app",
   "scripts": {
-    "test": "wdio run wdio.conf.ts",
-    "test:gestures": "wdio run wdio.conf.ts --spec tests/gestures.e2e.ts"
+    "test": "ANDROID_HOME=$HOME/Library/Android/sdk ANDROID_SDK_ROOT=$HOME/Library/Android/sdk APPIUM_HOME=$HOME/.appium PATH=$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/tools:$PATH wdio run wdio.conf.ts",
+    "test:gestures": "ANDROID_HOME=$HOME/Library/Android/sdk ANDROID_SDK_ROOT=$HOME/Library/Android/sdk APPIUM_HOME=$HOME/.appium PATH=$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/tools:$PATH wdio run wdio.conf.ts --spec tests/gestures.e2e.ts"
   },
   "devDependencies": {
     "@wdio/appium-service": "^9.0.0",
@@ -19,6 +19,6 @@
     "webdriverio": "^9.0.0"
   },
   "dependencies": {
-    "appium": "^2.11.0"
+    "appium": "^3.5.0"
   }
 }

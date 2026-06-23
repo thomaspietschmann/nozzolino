@@ -195,6 +195,7 @@ export function FileTree({ notes }: FileTreeProps) {
           <button
             key={note.id}
             ref={(el) => setRowRef(index, el)}
+            data-testid="note-row"
             className={`w-full text-left py-2 text-sm flex items-center gap-2 rounded-lg mx-1 transition-colors ${indentClass} ${
               isActive
                 ? 'bg-accent/20 text-zinc-900 dark:text-white'

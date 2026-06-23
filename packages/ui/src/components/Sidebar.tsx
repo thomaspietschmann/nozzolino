@@ -37,7 +37,7 @@ export function Sidebar() {
       + (sidebarOpen ? ' translate-x-0' : ' -translate-x-full')
       + ' md:static md:z-auto md:w-60 md:max-w-none md:translate-x-0 md:transition-none'
       + ' shrink-0 flex flex-col bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 select-none'
-    } aria-label="Sidebar" onClick={(e) => e.stopPropagation()}>
+    } aria-label="Sidebar" data-open={sidebarOpen ? 'true' : 'false'} onClick={(e) => e.stopPropagation()}>
       {/* Mobile: close button in the header area */}
       <button
         className="absolute top-3 right-3 p-1 rounded text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 md:hidden"

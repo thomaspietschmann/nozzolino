@@ -19,21 +19,32 @@ const APP_PACKAGE = 'app.notes.mobile';
 const WEBVIEW_CONTEXT = `WEBVIEW_${APP_PACKAGE}`;
 
 /** Wait for the WebView context to appear and switch into it. */
-async function switchToWebView(driver: WebdriverIO.Browser): Promise<void> {
-  await driver.waitUntil(
+async function switchToWebView(d: WebdriverIO.Browser): Promise<void> {
+  // If a native overlay (e.g. a leftover SAF picker) is covering the app, the WebView
+  // context disappears. Press Back once to dismiss any lingering native activity, then wait.
+  try {
+    const ctxs = await d.getContexts();
+    if (!ctxs.some((c) => String(c).startsWith('WEBVIEW'))) {
+      await d.switchContext('NATIVE_APP');
+      await d.pressKeyCode(4); // KEYCODE_BACK
+      await d.pause(1500);
+    }
+  } catch { /* ignore — just proceed to the waitUntil below */ }
+
+  await d.waitUntil(
     async () => {
-      const ctxs = await driver.getContexts();
+      const ctxs = await d.getContexts();
       return ctxs.some((c) => String(c).startsWith('WEBVIEW'));
     },
-    { timeout: 15000, timeoutMsg: 'WebView context never appeared' },
+    { timeout: 20000, timeoutMsg: 'WebView context never appeared' },
   );
-  await driver.switchContext(WEBVIEW_CONTEXT);
+  await d.switchContext(WEBVIEW_CONTEXT);
 }
 
 /** Check whether the VaultOpenScreen is shown (vault not yet opened). */
-async function isOnVaultOpenScreen(driver: WebdriverIO.Browser): Promise<boolean> {
+async function isOnVaultOpenScreen(d: WebdriverIO.Browser): Promise<boolean> {
   try {
-    const btn = await driver.$('button[aria-label="Open vault folder"], button*=Open vault folder');
+    const btn = await d.$('[data-testid="open-vault-btn"]');
     return await btn.isDisplayed();
   } catch {
     return false;
@@ -42,68 +53,113 @@ async function isOnVaultOpenScreen(driver: WebdriverIO.Browser): Promise<boolean
 
 /**
  * Drive the SAF folder picker in NATIVE_APP context.
- * Selects the first available folder in the picker (usually Documents).
- * Uses resource IDs where possible — more stable across Android versions.
+ * Uses resource IDs — more stable across Android versions than text.
  */
-async function pickFirstFolder(driver: WebdriverIO.Browser): Promise<void> {
-  // Tap "Open vault folder" button in WebView
-  await switchToWebView(driver);
-  const openBtn = await driver.$('button=Open vault folder');
+async function pickFirstFolder(d: WebdriverIO.Browser): Promise<void> {
+  // Already in WebView context — tap "Open vault folder"
+  const openBtn = await d.$('[data-testid="open-vault-btn"]');
   await openBtn.click();
 
-  // Native picker opens — switch to NATIVE_APP
-  await driver.switchContext('NATIVE_APP');
+  // Give the SAF intent time to fire and the DocumentsUI activity to start.
+  // Without this pause, Appium starts polling before the Activity is visible.
+  await d.pause(3000);
 
-  // Wait for the document picker activity
-  await driver.waitUntil(
+  // Switch to native context now that the picker should be launching
+  await d.switchContext('NATIVE_APP');
+
+  // Wait for the document picker — try both the AOSP and Google-flavoured DocumentsUI package names.
+  // On Pixel/Google emulators the package is "com.google.android.documentsui".
+  await d.waitUntil(
+    async () => {
+      const selectors = [
+        'android=new UiSelector().resourceId("com.google.android.documentsui:id/toolbar")',
+        'android=new UiSelector().resourceId("com.android.documentsui:id/toolbar")',
+        'android=new UiSelector().resourceId("com.google.android.documentsui:id/dir_list")',
+      ];
+      for (const sel of selectors) {
+        try {
+          const el = await d.$(sel);
+          if (await el.isDisplayed()) return true;
+        } catch { /* not found yet */ }
+      }
+      return false;
+    },
+    { timeout: 20000, timeoutMsg: 'SAF picker never appeared' },
+  );
+
+  // Create a new vault folder ("NotesVault") to avoid Android's "Can't use this folder"
+  // restriction that applies to built-in directories (Documents, Downloads, etc.) on Android 14+.
+  try {
+    // If a "CREATE NEW FOLDER" button is present, use it (we are at the root level)
+    const createDirBtn = await d.$(
+      'android=new UiSelector().resourceId("com.google.android.documentsui:id/action_button")',
+    );
+    if (await createDirBtn.isDisplayed()) {
+      await createDirBtn.click();
+      await d.pause(800);
+      // Type the folder name and confirm
+      const nameInput = await d.$('android=new UiSelector().className("android.widget.EditText")');
+      await nameInput.clearValue();
+      await nameInput.setValue('NotesVault');
+      await d.pause(400);
+      const okBtn = await d.$('android=new UiSelector().resourceId("android:id/button1")');
+      await okBtn.click();
+      await d.pause(1000);
+    }
+  } catch { /* already inside a folder that can be used — proceed */ }
+
+  // "USE THIS FOLDER" — resource-id is the most stable selector
+  await d.waitUntil(
     async () => {
       try {
-        const title = await driver.$('android=new UiSelector().resourceId("com.android.documentsui:id/toolbar")');
-        return await title.isDisplayed();
+        const btn = await d.$('android=new UiSelector().resourceId("android:id/button1")');
+        return await btn.isDisplayed();
       } catch {
         return false;
       }
     },
-    { timeout: 10000, timeoutMsg: 'SAF picker never appeared' },
+    { timeout: 10000, timeoutMsg: '"Use this folder" button never appeared' },
   );
-
-  // Navigate to a folder — tap the first item in the list
-  try {
-    const item = await driver.$('android=new UiSelector().className("android.widget.LinearLayout").instance(0)');
-    await item.click();
-  } catch {
-    // Fallback: tap by text "Documents"
-    const docs = await driver.$('android=new UiSelector().text("Documents")');
-    await docs.click();
-  }
-
-  // Tap "USE THIS FOLDER" button (resource ID stable across versions)
-  const useFolder = await driver.$('android=new UiSelector().resourceId("android:id/button1")');
+  const useFolder = await d.$('android=new UiSelector().resourceId("android:id/button1")');
   await useFolder.click();
+  await d.pause(800);
 
-  // Allow permission dialog
+  // Allow-access dialog (android:id/button1 = ALLOW)
   try {
-    const allow = await driver.$('android=new UiSelector().resourceId("android:id/button1")');
-    if (await allow.isDisplayed()) await allow.click();
-  } catch {
-    // Permission dialog may not appear if already granted (noReset: true)
-  }
+    await d.waitUntil(
+      async () => {
+        try {
+          const allow = await d.$('android=new UiSelector().resourceId("android:id/button1")');
+          return await allow.isDisplayed();
+        } catch { return false; }
+      },
+      { timeout: 5000, timeoutMsg: '' },
+    );
+    const allow = await d.$('android=new UiSelector().resourceId("android:id/button1")');
+    await allow.click();
+    await d.pause(500);
+  } catch { /* already granted or dialog did not appear */ }
 
-  // Return to WebView
-  await switchToWebView(driver);
-
-  // Wait for the app to finish loading the vault
-  await driver.waitUntil(
+  // Back to WebView — vault should load
+  await switchToWebView(d);
+  await d.waitUntil(
     async () => {
       try {
-        const sidebar = await driver.$('aside[aria-label="Sidebar"]');
+        const sidebar = await d.$('aside[aria-label="Sidebar"]');
         return await sidebar.isDisplayed();
       } catch {
         return false;
       }
     },
-    { timeout: 15000, timeoutMsg: 'Vault never loaded after folder pick' },
+    { timeout: 20000, timeoutMsg: 'Vault never loaded after folder pick' },
   );
+}
+
+/** Return true when the sidebar is in the open state (data-open="true"). */
+async function isSidebarOpen(d: WebdriverIO.Browser): Promise<boolean> {
+  const sidebar = await d.$('aside[aria-label="Sidebar"]');
+  const attr = await sidebar.getAttribute('data-open');
+  return attr === 'true';
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────
@@ -112,151 +168,220 @@ describe('M6.3 — Mobile gestures', function () {
   this.timeout(120_000);
 
   before(async function () {
-    // If no vault is open yet (first run), drive the SAF picker.
+    // Switch into WebView first
+    await switchToWebView(driver);
+
+    // Wait for EITHER the VaultOpenScreen OR the AppShell to appear (whichever comes first).
+    // The app may be loading the saved vault URI, so neither is guaranteed to be immediate.
+    await driver.waitUntil(
+      async () => {
+        try {
+          const sidebar = await driver.$('aside[aria-label="Sidebar"]');
+          if (await sidebar.isDisplayed()) return true;
+        } catch { /* not there yet */ }
+        try {
+          const vaultBtn = await driver.$('[data-testid="open-vault-btn"]');
+          if (await vaultBtn.isDisplayed()) return true;
+        } catch { /* not there yet */ }
+        return false;
+      },
+      { timeout: 25000, timeoutMsg: 'Neither VaultOpenScreen nor AppShell appeared after 25 s' },
+    );
+
+    // If no vault is open yet (first run), drive the SAF picker
     if (await isOnVaultOpenScreen(driver)) {
       await pickFirstFolder(driver);
-    } else {
-      await switchToWebView(driver);
-      // Make sure we are in AppShell (vault loaded)
-      await driver.waitUntil(
-        async () => {
-          try {
-            const sidebar = await driver.$('aside[aria-label="Sidebar"]');
-            return await sidebar.isDisplayed();
-          } catch {
-            return false;
-          }
-        },
-        { timeout: 10000, timeoutMsg: 'AppShell never appeared' },
-      );
+    }
+    // Otherwise AppShell is already visible — nothing more to do.
+
+    // Ensure drawer starts closed before the suite runs
+    if (await isSidebarOpen(driver)) {
+      try {
+        const closeBtn = await driver.$('aside button[aria-label="Close sidebar"]');
+        if (await closeBtn.isDisplayed()) await closeBtn.click();
+      } catch {
+        // If close btn not reachable, tap the backdrop
+        await driver.execute(() => {
+          // Force close by dispatching a click outside the aside
+          document.documentElement.click();
+        });
+      }
+      await driver.pause(300);
     }
   });
 
   // ── M6.3.1 — Responsive drawer ────────────────────────────────────────────
 
-  it('shows the hamburger toggle button on mobile (<768px viewport)', async function () {
+  it('shows the hamburger toggle button on mobile', async function () {
     const toggle = await driver.$('[data-testid="sidebar-toggle"]');
     expect(await toggle.isDisplayed()).toBe(true);
   });
 
-  it('sidebar is initially closed on mobile', async function () {
-    const sidebar = await driver.$('aside[aria-label="Sidebar"]');
-    // On mobile the sidebar is off-screen (-translate-x-full) — not visible
-    const location = await sidebar.getLocation();
-    // x should be negative (translated off-screen) or element not interactable
-    expect(location.x).toBeLessThan(0);
+  it('sidebar is initially closed on mobile (data-open=false)', async function () {
+    expect(await isSidebarOpen(driver)).toBe(false);
   });
 
-  // ── M6.3.2 — Edge-swipe / hamburger open + auto-close ────────────────────
+  // ── M6.3.2 — Hamburger open + auto-close ─────────────────────────────────
 
   it('opens the drawer via the hamburger button', async function () {
     const toggle = await driver.$('[data-testid="sidebar-toggle"]');
     await toggle.click();
 
-    const sidebar = await driver.$('aside[aria-label="Sidebar"]');
-    await driver.waitUntil(
-      async () => {
-        const location = await sidebar.getLocation();
-        return location.x >= 0;
-      },
-      { timeout: 2000, timeoutMsg: 'Sidebar never slid into view' },
-    );
+    await driver.waitUntil(() => isSidebarOpen(driver), {
+      timeout: 2000,
+      timeoutMsg: 'Sidebar never opened after hamburger tap',
+    });
   });
 
   it('closes the drawer when tapping a note in the sidebar', async function () {
-    // Make sure drawer is open
-    const sidebar = await driver.$('aside[aria-label="Sidebar"]');
-    const loc = await sidebar.getLocation();
-    if (loc.x < 0) {
+    // Ensure drawer is open
+    if (!(await isSidebarOpen(driver))) {
       const toggle = await driver.$('[data-testid="sidebar-toggle"]');
       await toggle.click();
-      await driver.pause(300);
+      await driver.waitUntil(() => isSidebarOpen(driver), { timeout: 2000, timeoutMsg: 'Could not open drawer' });
     }
 
-    // Tap the first note row in the file tree
-    const noteBtn = await driver.$('aside button:not([aria-label])');
-    if (await noteBtn.isDisplayed()) {
-      await noteBtn.click();
-      // Drawer should auto-close
-      await driver.waitUntil(
-        async () => {
-          const location = await sidebar.getLocation();
-          return location.x < 0;
-        },
-        { timeout: 2000, timeoutMsg: 'Drawer did not close after note selection' },
-      );
-    } else {
-      // Empty vault — skip this assertion
+    // Find the first note row (stable data-testid added in M6.3)
+    const noteRows = await driver.$$('[data-testid="note-row"]');
+    if (noteRows.length === 0) {
       this.skip();
+      return;
     }
-  });
+    const noteBtn = noteRows[0]!;
+    await noteBtn.click();
 
-  it('opens the drawer via edge swipe right', async function () {
-    // Ensure drawer is closed first
-    const sidebar = await driver.$('aside[aria-label="Sidebar"]');
-    const loc = await sidebar.getLocation();
-    if (loc.x >= 0) {
-      // Close it via the close button
-      const closeBtn = await driver.$('aside button[aria-label="Close sidebar"]');
-      await closeBtn.click();
-      await driver.pause(300);
-    }
-
-    // Swipe right from left edge — use native context for reliable screen coords
-    await driver.switchContext('NATIVE_APP');
-    const { width, height } = await driver.getWindowSize();
-    await driver.execute('mobile: swipeGesture', {
-      left: 0,
-      top: Math.floor(height * 0.5),
-      width: 40,
-      height: 10,
-      direction: 'right',
-      percent: 0.9,
-    });
-    await driver.switchContext(WEBVIEW_CONTEXT);
-
+    // Drawer should auto-close
     await driver.waitUntil(
-      async () => {
-        const location = await sidebar.getLocation();
-        return location.x >= 0;
-      },
-      { timeout: 2000, timeoutMsg: 'Drawer did not open via edge swipe' },
+      async () => !(await isSidebarOpen(driver)),
+      { timeout: 2000, timeoutMsg: 'Drawer did not close after note selection' },
     );
   });
 
-  // ── M6.3.3 — Long-press wikilink peek ─────────────────────────────────────
+  // ── M6.3.3 — Edge-swipe ───────────────────────────────────────────────────
+
+  it('opens the drawer via edge swipe right', async function () {
+    // Ensure we're in WebView context
+    await switchToWebView(driver);
+
+    // Ensure drawer is closed
+    if (await isSidebarOpen(driver)) {
+      await driver.execute(() => {
+        document.documentElement.click(); // tap outside aside → close via backdrop
+      });
+      await driver.pause(400);
+    }
+
+    // Simulate the edge-swipe gesture via JS TouchEvent dispatch in the WebView context.
+    // Reason: using NATIVE_APP + mobile:swipeGesture from x=0 triggers Android's system
+    // back gesture on Android 10+, which backgrounds the app and kills the WebView context.
+    // Dispatching TouchEvents directly into the React document is reliable and controlled.
+    await driver.execute(() => {
+      const y = Math.floor(window.innerHeight / 2);
+      // Start at x=5 (within the 24 px edge zone required by useEdgeSwipe)
+      const t1 = new Touch({ identifier: 1, target: document.documentElement, clientX: 5, clientY: y, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 });
+      document.dispatchEvent(new TouchEvent('touchstart', { touches: [t1], changedTouches: [t1], bubbles: true, cancelable: true }));
+      // End at x=200 → dx=195, well above the 60 px threshold
+      const t2 = new Touch({ identifier: 1, target: document.documentElement, clientX: 200, clientY: y, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 });
+      document.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [t2], bubbles: true, cancelable: true }));
+    });
+
+    await driver.waitUntil(() => isSidebarOpen(driver), {
+      timeout: 2000,
+      timeoutMsg: 'Drawer did not open via edge swipe',
+    });
+
+    // Clean up: close the drawer by tapping the backdrop
+    try {
+      await driver.execute(() => { document.documentElement.click(); });
+    } catch { /* no-op */ }
+    await driver.pause(300);
+  });
+
+  // ── M6.3.4 — Long-press wikilink peek ─────────────────────────────────────
 
   it('shows peek panel on long-press of a wikilink', async function () {
-    // Need a note with a wikilink open in the editor.
-    // Try to open a note and check for wikilinks — skip if vault is empty.
-    const noteBtn = await driver.$('aside button:not([aria-label])');
-    if (!(await noteBtn.isDisplayed())) {
+    // Ensure WebView context (previous test may have changed it)
+    await switchToWebView(driver);
+
+    // Open a note that has wikilinks — skip if vault is empty or has no wikilinks
+    const noteRows = await driver.$$('[data-testid="note-row"]');
+    if (noteRows.length === 0) {
       this.skip();
       return;
     }
 
-    // Open drawer, select first note
-    const toggle = await driver.$('[data-testid="sidebar-toggle"]');
-    await toggle.click();
-    await driver.pause(200);
-    await noteBtn.click();
-    await driver.pause(500);
+    // Ensure sidebar open, select first note
+    if (!(await isSidebarOpen(driver))) {
+      const toggle = await driver.$('[data-testid="sidebar-toggle"]');
+      await toggle.click();
+      await driver.waitUntil(() => isSidebarOpen(driver), { timeout: 2000, timeoutMsg: 'Could not open drawer for note selection' });
+    }
 
-    // Look for a wikilink in the editor
-    const wikilink = await driver.$('span.wikilink');
-    if (!(await wikilink.isDisplayed())) {
+    // Iterate through notes until we find one with a wikilink (or give up)
+    let wikilink: WebdriverIO.Element | null = null;
+    const rows = await driver.$$('[data-testid="note-row"]');
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+      const row = rows[i]!;
+      await row.click();
+      await driver.pause(500);
+
+      // Close the drawer if it auto-closed
+      await driver.pause(100);
+
+      // Check for wikilink in the editor
+      const links = await driver.$$('span.wikilink');
+      if (links.length > 0 && (await links[0]!.isDisplayed())) {
+        wikilink = links[0]!;
+        break;
+      }
+
+      // Re-open sidebar to pick another note
+      if (i < rows.length - 1) {
+        const toggle = await driver.$('[data-testid="sidebar-toggle"]');
+        await toggle.click();
+        await driver.waitUntil(() => isSidebarOpen(driver), { timeout: 2000, timeoutMsg: 'Could not re-open drawer' });
+      }
+    }
+
+    if (!wikilink) {
       this.skip();
       return;
     }
 
-    // Capture active note before the gesture
-    const activeBefore = await driver.$('aside button.bg-accent\\/20');
-    const titleBefore = await activeBefore.getText().catch(() => '');
+    // Record which note is active before the gesture
+    const activeLinks = await driver.$$('aside [data-testid="note-row"].bg-accent\\/20, aside [data-testid="note-row"][class*="bg-accent"]');
+    const titleBefore = activeLinks.length > 0 ? await activeLinks[0]!.getText().catch(() => '') : '';
 
-    // Long-press the wikilink
-    await driver.execute('mobile: longClickGesture', {
-      elementId: wikilink.elementId,
-      duration: 600,
+    // Long-press via JS TouchEvent dispatch.
+    // mobile:longClickGesture uses Android's accessibility long-click which bypasses the
+    // React touchstart/touchend handler. Dispatching TouchEvents directly is reliable.
+    //
+    // CRITICAL: dispatch ON the wikilink element (not document) so that when the event
+    // bubbles up, e.target === wl and `(e.target).closest('.wikilink')` returns the element.
+    // If dispatched on document, e.target === document which has no .closest() → returns early.
+    //
+    // Step 1: touchstart (starts the 450ms timer in WikilinkPeek)
+    await driver.execute(() => {
+      const wl = document.querySelector('span.wikilink');
+      if (!wl) return;
+      const rect = wl.getBoundingClientRect();
+      const cx = Math.round(rect.left + rect.width / 2);
+      const cy = Math.round(rect.top + rect.height / 2);
+      const t = new Touch({ identifier: 99, target: wl, clientX: cx, clientY: cy, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 });
+      // Dispatch on wl so e.target is the wikilink element when the handler on document fires
+      wl.dispatchEvent(new TouchEvent('touchstart', { touches: [t], changedTouches: [t], bubbles: true, cancelable: true }));
+    });
+    // Step 2: wait 600ms — the 450ms timer fires and the peek panel appears
+    await driver.pause(600);
+    // Step 3: touchend — longPressFired is true so any synthetic click is swallowed
+    await driver.execute(() => {
+      const wl = document.querySelector('span.wikilink');
+      if (!wl) return;
+      const rect = wl.getBoundingClientRect();
+      const cx = Math.round(rect.left + rect.width / 2);
+      const cy = Math.round(rect.top + rect.height / 2);
+      const t = new Touch({ identifier: 99, target: wl, clientX: cx, clientY: cy, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 });
+      wl.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [t], bubbles: true, cancelable: true }));
     });
 
     // Peek panel should appear
@@ -266,53 +391,84 @@ describe('M6.3 — Mobile gestures', function () {
       timeoutMsg: 'Wikilink peek never appeared after long-press',
     });
 
-    // Active note must not have changed (no navigation)
-    const activeAfter = await driver.$('aside button.bg-accent\\/20');
-    const titleAfter = await activeAfter.getText().catch(() => '');
+    // Active note must not have changed (no navigation triggered)
+    const activeLinksAfter = await driver.$$('aside [data-testid="note-row"].bg-accent\\/20, aside [data-testid="note-row"][class*="bg-accent"]');
+    const titleAfter = activeLinksAfter.length > 0 ? await activeLinksAfter[0]!.getText().catch(() => '') : '';
     expect(titleAfter).toBe(titleBefore);
   });
 
-  // ── M6.3.4 — Pinch-zoom graph ─────────────────────────────────────────────
+  // ── M6.3.5 — Pinch-zoom graph ─────────────────────────────────────────────
 
   it('graph view survives a pinch-zoom gesture', async function () {
-    // Open graph view via the search palette or keyboard shortcut
-    // Using a direct DOM evaluation since mobile has no keyboard
-    await driver.execute(() => {
-      // Dispatch Ctrl+G equivalent — Cytoscape listens on the container
-      const event = new KeyboardEvent('keydown', {
-        key: 'g',
-        ctrlKey: true,
-        bubbles: true,
-      });
-      document.dispatchEvent(event);
-    });
-    await driver.pause(800);
+    // Ensure WebView context (previous test may have changed it)
+    await switchToWebView(driver);
 
-    const graphContainer = await driver.$('canvas');
-    if (!(await graphContainer.isDisplayed())) {
+    // Open the graph view: try a palette toggle button first (multiple selector strategies),
+    // fall back to the Ctrl+G keyboard shortcut if none is found.
+    let paletteOpened = false;
+    for (const sel of ['[data-testid="palette-toggle"]', '[aria-label="Command palette"]', '[aria-label="Open command palette"]']) {
+      try {
+        const btn = await driver.$(sel);
+        if (await btn.isDisplayed()) {
+          await btn.click();
+          paletteOpened = true;
+          break;
+        }
+      } catch { /* try next */ }
+    }
+
+    if (paletteOpened) {
+      // Type to navigate to "Graph" via the palette
+      try {
+        const paletteInput = await driver.$('[data-testid="palette-input"]');
+        await paletteInput.setValue('graph');
+        await driver.pause(300);
+        await driver.keys(['Enter']);
+      } catch {
+        // Close palette, fall through to Ctrl+G
+        await driver.execute(() =>
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+        );
+        paletteOpened = false;
+      }
+    }
+
+    if (!paletteOpened) {
+      // No palette toggle — dispatch Ctrl+G directly on the document
+      await driver.execute(() =>
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', ctrlKey: true, bubbles: true })),
+      );
+    }
+
+    await driver.pause(1000);
+
+    // Look for the graph canvas
+    let graphContainer: WebdriverIO.Element | null = null;
+    try {
+      const canvas = await driver.$('canvas');
+      if (await canvas.isDisplayed()) graphContainer = canvas;
+    } catch { /* no canvas */ }
+
+    if (!graphContainer) {
       this.skip();
       return;
     }
 
     // Pinch open gesture on the graph canvas
     await driver.execute('mobile: pinchOpenGesture', {
-      elementId: graphContainer.elementId,
+      elementId: (graphContainer as WebdriverIO.Element & { elementId: string }).elementId,
       percent: 0.5,
       speed: 2500,
     });
     await driver.pause(500);
 
-    // No crash = pass. Graph canvas still present.
+    // No crash = pass; canvas still present
     expect(await graphContainer.isDisplayed()).toBe(true);
 
     // Close graph view
     await driver.execute(() => {
-      const event = new KeyboardEvent('keydown', {
-        key: 'g',
-        ctrlKey: true,
-        bubbles: true,
-      });
-      document.dispatchEvent(event);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', ctrlKey: true, bubbles: true }));
     });
   });
 });

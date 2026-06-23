@@ -79,6 +79,7 @@ export function MonthBrowser({ notes }: MonthBrowserProps) {
               groupNotes.map((note) => (
                 <button
                   key={note.id}
+                  data-testid="note-row"
                   className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 rounded-lg mx-1 transition-colors ${
                     activeNoteId === note.id
                       ? 'bg-accent/20 text-white'
