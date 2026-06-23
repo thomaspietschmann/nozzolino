@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import {
   buildVaultIndex,
   writeNote,
@@ -10,9 +11,11 @@ import {
   createConflictFromExternal,
   type VaultIndex,
   type VaultOpsContext,
+  type VaultFS,
 } from '@notes-app/vault';
 import type { NoteRecord } from '@notes-app/common';
 import { WebVaultFS } from '../fs/WebVaultFS.js';
+import { CapacitorVaultFS, NativeVaultPlugin } from '../fs/CapacitorVaultFS.js';
 
 interface FileChangedEvent {
   event: 'add' | 'change' | 'unlink';
@@ -22,7 +25,7 @@ interface FileChangedEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Demo seed content (shown on first boot when IndexedDB is empty)
+// Demo seed content (shown on first boot in the browser dev build only)
 // ---------------------------------------------------------------------------
 
 const now = new Date().toISOString();
@@ -111,7 +114,7 @@ This note is linked from [[Welcome]].
 // Module state (mirrors vaultManager.ts structure)
 // ---------------------------------------------------------------------------
 
-let vaultFS: WebVaultFS | null = null;
+let vaultFS: VaultFS | null = null;
 let index: VaultIndex | null = null;
 
 // Registered event handlers: channel → Set of handler functions
@@ -131,7 +134,7 @@ function getCtx(): VaultOpsContext {
     vaultFS,
     index,
     generateId: () => crypto.randomUUID(),
-    // No self-write suppression needed on a single-device web app
+    // Single-device: no self-write suppression needed (no watcher on mobile in M6.2)
     onDidWrite: undefined,
   };
 }
@@ -157,17 +160,49 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
   switch (channel) {
     // -----------------------------------------------------------------------
     case 'vault:open': {
-      const dbName = (args[0] as string | undefined) ?? 'notes-vault';
-      vaultFS = new WebVaultFS(dbName);
-      await vaultFS.open();
-      if (await vaultFS.isEmpty()) {
-        await vaultFS.seed(DEMO_NOTES);
+      const isNative = Capacitor.isNativePlatform();
+
+      if (isNative) {
+        // Native path: open the SAF vault
+        const capFS = new CapacitorVaultFS();
+        const uriArg = args[0] as string | undefined;
+
+        if (uriArg && uriArg !== 'default') {
+          // Opening a specific URI (from getRecent click or auto-open)
+          await NativeVaultPlugin.setRoot({ uri: uriArg });
+        } else {
+          // Load previously saved URI (returning user)
+          await capFS.open();
+        }
+        vaultFS = capFS;
+      } else {
+        // Browser/web path: IndexedDB + demo seed
+        const dbName = (args[0] as string | undefined) ?? 'notes-vault';
+        const webFS = new WebVaultFS(dbName);
+        await webFS.open();
+        if (await webFS.isEmpty()) {
+          await webFS.seed(DEMO_NOTES);
+        }
+        vaultFS = webFS;
       }
+
       index = await buildVaultIndex(vaultFS);
       return index.getAllNotes();
     }
 
+    // -----------------------------------------------------------------------
     case 'vault:getRecent': {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { uri } = await NativeVaultPlugin.getSavedFolder();
+          if (uri) {
+            return [{ path: uri, name: 'My Notes', lastOpened: new Date().toISOString() }];
+          }
+        } catch {
+          // Permission may have been revoked; fall through to empty list
+        }
+        return [];
+      }
       return [{ path: 'default', name: 'My Notes', lastOpened: new Date().toISOString() }];
     }
 
@@ -243,7 +278,13 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
 
     // -----------------------------------------------------------------------
     case 'dialog:openFolder': {
-      // No native folder picker on web — return the fixed vault name
+      if (Capacitor.isNativePlatform()) {
+        // Launch SAF folder picker; returns the chosen URI string
+        const capFS = new CapacitorVaultFS();
+        const uri = await capFS.pickFolder();
+        return uri; // null if cancelled
+      }
+      // Browser dev build: return the fixed vault name
       return 'default';
     }
 
@@ -253,7 +294,7 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
     }
 
     default:
-      console.warn(`[mockBridge] unhandled channel: ${channel}`);
+      console.warn(`[bridge] unhandled channel: ${channel}`);
       return undefined;
   }
 }
@@ -262,7 +303,7 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
 // Public install
 // ---------------------------------------------------------------------------
 
-export function installMockBridge(): void {
+export function installBridge(): void {
   const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
     dispatch(channel, args) as Promise<T>;
 
@@ -272,14 +313,18 @@ export function installMockBridge(): void {
     return () => listeners.get(channel)?.delete(handler);
   };
 
-  // Install on window so ipc.ts (which reads window.electronAPI) works unchanged.
-  // e2eVaultPath is reused as an auto-open trigger: App.tsx calls openVault(e2eVaultPath)
-  // on mount when it is set, which lands the user directly in AppShell.
+  // On native, e2eVaultPath is null — VaultOpenScreen handles the first-open/re-open flow.
+  // On web (browser dev build), 'default' triggers the IndexedDB auto-open in App.tsx.
+  const e2eVaultPath = Capacitor.isNativePlatform() ? null : 'default';
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).electronAPI = {
     invoke,
     on,
-    platform: 'web' as const,
-    e2eVaultPath: 'default',
+    platform: Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web',
+    e2eVaultPath,
   };
 }
+
+// Backward-compat alias (removed when all callers updated)
+export { installBridge as installMockBridge };

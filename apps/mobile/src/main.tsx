@@ -1,8 +1,8 @@
-import { installMockBridge } from './bridge/mockBridge.js';
+import { installBridge } from './bridge/bridge.js';
 
-// Install the mock window.electronAPI before any UI code imports or runs.
-// This ensures ipc.ts finds window.electronAPI when the app mounts.
-installMockBridge();
+// Install window.electronAPI before any UI code imports or runs.
+// On native: wires CapacitorVaultFS (SAF). On web: wires WebVaultFS (IndexedDB).
+installBridge();
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
