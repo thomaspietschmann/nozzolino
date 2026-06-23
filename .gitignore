@@ -17,15 +17,15 @@ release/
 *.rpm
 
 # Android build output
-apps/android/app/build/
-apps/android/.gradle/
-apps/android/local.properties
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
 *.apk
 *.aab
 *.keystore
 
-# Capacitor generated files (source-controlled: apps/android/app/src/)
-apps/android/app/src/main/assets/public/
+# Capacitor generated files (source-controlled: apps/mobile/android/app/src/)
+apps/mobile/android/app/src/main/assets/public/
 
 # OS / editor
 .DS_Store
