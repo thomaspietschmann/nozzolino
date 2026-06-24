@@ -1,4 +1,5 @@
 import { defineWorkspace } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineWorkspace([
   {
@@ -33,6 +34,20 @@ export default defineWorkspace([
     test: {
       name: 'sync',
       include: ['packages/sync/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
+  {
+    resolve: {
+      alias: {
+        '@notes-app/common': resolve('packages/common/src/index.ts'),
+        '@notes-app/vault': resolve('packages/vault/src/index.ts'),
+        '@notes-app/sync': resolve('packages/sync/src/index.ts'),
+      },
+    },
+    test: {
+      name: 'mobile',
+      include: ['apps/mobile/src/**/*.test.ts'],
       environment: 'node',
     },
   },

@@ -9,6 +9,7 @@ import {
   saveImage,
   resolveConflict,
   createConflictFromExternal,
+  scanExistingConflicts,
   type VaultIndex,
   type VaultOpsContext,
   type VaultFS,
@@ -205,8 +206,22 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
       // Close any previous watcher and clear the self-write registry first.
       if (watcher) { watcher.close(); watcher = null; }
       selfWriteHashes.clear();
+
       if (Capacitor.isNativePlatform()) {
-        watcher = watchVaultByPoll(vaultFS, index, emit, selfWriteHashes);
+        // M6.5.1 — emit any conflict files that already exist in the vault.
+        for (const { record } of await scanExistingConflicts(getCtx())) {
+          emit('vault:conflictDetected', record);
+        }
+
+        // M6.5.2 — start the poll watcher; inject a scanConflicts thunk so
+        // the watcher can diff conflicts each tick without importing vault ops.
+        watcher = watchVaultByPoll(
+          vaultFS,
+          index,
+          emit,
+          selfWriteHashes,
+          () => scanExistingConflicts(getCtx()),
+        );
       }
 
       return index.getAllNotes();

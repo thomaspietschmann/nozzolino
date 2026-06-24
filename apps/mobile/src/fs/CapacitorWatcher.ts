@@ -1,9 +1,8 @@
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
-import type { VaultFS } from '@notes-app/vault';
-import type { VaultIndex } from '@notes-app/vault';
+import type { VaultFS, VaultIndex, ConflictScanEntry } from '@notes-app/vault';
 import { scanVault } from '@notes-app/vault';
-import type { NoteRecord } from '@notes-app/common';
+import type { NoteRecord, ConflictRecord } from '@notes-app/common';
 import { sha1Hex } from '@notes-app/common';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +43,9 @@ const POLL_INTERVAL_MS = 30_000;
  *    bridge). Own writes are silently skipped; external changes (e.g.
  *    Syncthing) emit `vault:fileChanged{selfWrite:false}`.
  * 4. For removed files: emits `vault:fileChanged{event:'unlink'}`.
+ * 5. Runs a parallel conflict diff via `scanConflicts` (M6.5): newly
+ *    appeared `.sync-conflict-*` files emit `vault:conflictDetected`;
+ *    disappeared ones emit `vault:conflictRemoved`.
  *
  * The watcher is paused while the app is backgrounded (@capacitor/app
  * `appStateChange`) and runs one catch-up poll on foreground resume.
@@ -51,24 +53,28 @@ const POLL_INTERVAL_MS = 30_000;
  * NOTE: Unlike desktop's chokidar handler (absolute paths), all paths here
  * are vault-relative POSIX strings — matching every VaultIndex / vaultOps API.
  *
- * @param vaultFS     Open VaultFS implementation (CapacitorVaultFS on device).
- * @param index       Live VaultIndex for addOrRefresh / removeByPath.
- * @param emit        Bridge emit function — wraps the listeners Map.
+ * @param vaultFS        Open VaultFS implementation (CapacitorVaultFS on device).
+ * @param index          Live VaultIndex for addOrRefresh / removeByPath.
+ * @param emit           Bridge emit function — wraps the listeners Map.
  * @param selfWriteHashes  Shared Map<relPath, sha1> written by bridge onDidWrite.
+ * @param scanConflicts  Thunk returning current conflict scan results (M6.5).
  */
 export function watchVaultByPoll(
   vaultFS: VaultFS,
   index: VaultIndex,
-  emit: (channel: string, payload: FileChangedPayload) => void,
+  emit: (channel: string, payload: unknown) => void,
   selfWriteHashes: Map<string, string>,
+  scanConflicts?: () => Promise<ConflictScanEntry[]>,
 ): CapacitorWatcher {
   // snapshot: relPath → mtime epoch ms at last seen state
   const snapshot = new Map<string, number>();
+  // conflictSnapshot: conflictRelPath → ConflictRecord (M6.5)
+  const conflictSnapshot = new Map<string, ConflictRecord>();
   let timer: ReturnType<typeof setInterval> | null = null;
   let polling = false;
   let appStateHandle: PluginListenerHandle | null = null;
 
-  // ── Seed snapshot from the current vault state ──────────────────────────
+  // ── Seed snapshots from the current vault state ─────────────────────────
   void (async () => {
     const paths = await scanVault(vaultFS);
     await Promise.all(
@@ -81,6 +87,18 @@ export function watchVaultByPoll(
         }
       }),
     );
+
+    // Seed the conflict snapshot so pre-existing conflicts (already emitted
+    // by bridge.ts M6.5.1 on-open scan) are not re-emitted on the first poll.
+    if (scanConflicts) {
+      try {
+        for (const { conflictRelPath, record } of await scanConflicts()) {
+          conflictSnapshot.set(conflictRelPath, record);
+        }
+      } catch {
+        // Non-fatal — first poll will detect them as new and emit.
+      }
+    }
   })();
 
   // ── Poll once ────────────────────────────────────────────────────────────
@@ -127,6 +145,32 @@ export function watchVaultByPoll(
           snapshot.delete(relPath);
           index.removeByPath(relPath);
           emit('vault:fileChanged', { event: 'unlink', relativePath: relPath, selfWrite: false });
+        }
+      }
+
+      // ── M6.5 — Conflict diff ─────────────────────────────────────────────
+      if (scanConflicts) {
+        try {
+          const currentConflicts = await scanConflicts();
+          const currentConflictPaths = new Set(currentConflicts.map((e) => e.conflictRelPath));
+
+          // Newly appeared conflict files.
+          for (const { conflictRelPath, record } of currentConflicts) {
+            if (!conflictSnapshot.has(conflictRelPath)) {
+              conflictSnapshot.set(conflictRelPath, record);
+              emit('vault:conflictDetected', record);
+            }
+          }
+
+          // Disappeared conflict files.
+          for (const conflictRelPath of conflictSnapshot.keys()) {
+            if (!currentConflictPaths.has(conflictRelPath)) {
+              conflictSnapshot.delete(conflictRelPath);
+              emit('vault:conflictRemoved', conflictRelPath);
+            }
+          }
+        } catch {
+          // Non-fatal — try again next poll.
         }
       }
     } finally {
