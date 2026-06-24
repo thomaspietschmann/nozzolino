@@ -397,6 +397,116 @@ describe('M6.3 — Mobile gestures', function () {
     expect(titleAfter).toBe(titleBefore);
   });
 
+  // ── Bug regression — no duplicate notes on create / edit ─────────────────
+
+  /** Count note-row elements via JS (works regardless of sidebar state). */
+  async function countNoteRows(d: WebdriverIO.Browser): Promise<number> {
+    const count = await d.execute(() =>
+      document.querySelectorAll('[data-testid="note-row"]').length,
+    );
+    return Number(count);
+  }
+
+  /** Close the sidebar if open, then wait until it is definitely closed. */
+  async function ensureSidebarClosed(d: WebdriverIO.Browser): Promise<void> {
+    if (!(await isSidebarOpen(d))) return;
+    try {
+      const closeBtn = await d.$('aside button[aria-label="Close sidebar"]');
+      if (await closeBtn.isDisplayed()) {
+        await closeBtn.click();
+      } else {
+        throw new Error('close btn not visible');
+      }
+    } catch {
+      await d.execute(() => { document.documentElement.click(); });
+    }
+    await d.waitUntil(async () => !(await isSidebarOpen(d)), {
+      timeout: 2000,
+      timeoutMsg: 'Sidebar did not close',
+    });
+  }
+
+  it('creating a note produces exactly one list entry', async function () {
+    await switchToWebView(driver);
+
+    // Open the drawer so the "New note" button is accessible
+    if (!(await isSidebarOpen(driver))) {
+      const toggle = await driver.$('[data-testid="sidebar-toggle"]');
+      await toggle.click();
+      await driver.waitUntil(() => isSidebarOpen(driver), { timeout: 2000, timeoutMsg: 'Could not open drawer' });
+    }
+
+    // Count via JS — works even if rows aren't in the DOM viewport
+    const beforeRows = await countNoteRows(driver);
+
+    // Tap "New note" — this OPENS a title-entry form (not a direct create action).
+    // Sidebar.tsx: setShowNewNote(true) → shows <form><input placeholder="Note title…" /></form>
+    const newNoteBtn = await driver.$('button[title="New note"]');
+    if (!(await newNoteBtn.isDisplayed())) {
+      this.skip();
+      return;
+    }
+    await newNoteBtn.click();
+
+    // Wait for the title input to appear (autoFocus — may need a moment on SAF devices)
+    await driver.waitUntil(
+      async () => {
+        try {
+          const inp = await driver.$('input[placeholder="Note title…"]');
+          return await inp.isDisplayed();
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 3000, timeoutMsg: 'Title input form never appeared after clicking New note' },
+    );
+
+    // Type a title and submit via Enter — triggers handleCreate in Sidebar.tsx
+    const titleInput = await driver.$('input[placeholder="Note title…"]');
+    await titleInput.setValue('Regression Test Note');
+    await driver.keys(['Enter']); // form submit
+
+    // Brief pause to let the SAF write complete before polling
+    await driver.pause(800);
+
+    // Wait until the list grows by exactly 1 (up to 10 s — SAF I/O can be slow)
+    await driver.waitUntil(
+      async () => (await countNoteRows(driver)) === beforeRows + 1,
+      { timeout: 10000, timeoutMsg: `Row count never reached ${beforeRows + 1}` },
+    );
+
+    // Extra check: count should not grow further (no duplicate arriving late)
+    await driver.pause(1500);
+    const finalRows = await countNoteRows(driver);
+    expect(finalRows).toBe(beforeRows + 1);
+  });
+
+  it('editing the new note does not add further list entries', async function () {
+    await switchToWebView(driver);
+
+    const rowsBefore = await countNoteRows(driver);
+
+    // Close drawer so the editor is fully accessible
+    await ensureSidebarClosed(driver);
+    await driver.pause(200);
+
+    // Focus the ProseMirror editor via JS to avoid click-interception
+    await driver.execute(() => {
+      const pm = document.querySelector('.ProseMirror') as HTMLElement | null;
+      if (pm) pm.focus();
+    });
+    await driver.pause(300);
+
+    // Type — this triggers the autosave debounce
+    await driver.keys(['Hello from regression test']);
+
+    // Wait > autosave debounce (1000 ms) + some buffer for SAF write + watcher to settle
+    await driver.pause(3000);
+
+    const rowsAfter = await countNoteRows(driver);
+    expect(rowsAfter).toBe(rowsBefore);
+  });
+
   // ── M6.3.5 — Pinch-zoom graph ─────────────────────────────────────────────
 
   it('graph view survives a pinch-zoom gesture', async function () {
