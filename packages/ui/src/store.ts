@@ -190,7 +190,10 @@ export const useStore = create<AppState>((set, get) => ({
     // Read body only — same contract as selectNote.
     const raw = await ipc.readFile(record.path);
     const { body } = parseFrontmatter(raw);
-    set((s) => ({ notes: [...s.notes, record], activeNoteId: record.id, activeNoteContent: body, isDirty: false }));
+    // Use the shared dedup path so that a synchronous synthesizeChanged('add') event
+    // emitted by the mobile bridge before this return doesn't produce a duplicate.
+    get().upsertNoteRecord(record);
+    set({ activeNoteId: record.id, activeNoteContent: body, isDirty: false });
   },
 
   async renameNote(id: string, newTitle: string) {
@@ -322,12 +325,22 @@ export const useStore = create<AppState>((set, get) => ({
 
   upsertNoteRecord(record: NoteRecord) {
     set((s) => {
-      const exists = s.notes.some((n) => n.id === record.id || n.path === record.path);
-      return {
-        notes: exists
-          ? s.notes.map((n) => (n.id === record.id || n.path === record.path ? record : n))
-          : [...s.notes, record],
-      };
+      const matches = (n: NoteRecord) => n.id === record.id || n.path === record.path;
+      if (!s.notes.some(matches)) return { notes: [...s.notes, record] };
+      // Replace the first matching entry and discard any further duplicates
+      // (self-healing: if a prior bug left two entries with the same id/path,
+      // the next upsert collapses them to one).
+      let replaced = false;
+      const notes: NoteRecord[] = [];
+      for (const n of s.notes) {
+        if (matches(n)) {
+          if (!replaced) { notes.push(record); replaced = true; }
+          // additional collisions are silently dropped
+        } else {
+          notes.push(n);
+        }
+      }
+      return { notes };
     });
   },
 

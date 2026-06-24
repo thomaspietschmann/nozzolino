@@ -16,6 +16,9 @@ interface FileChangedPayload {
   selfWrite: boolean;
 }
 
+/** Union of all payload types the watcher can emit. */
+type EmitPayload = FileChangedPayload | ConflictRecord | string;
+
 export interface CapacitorWatcher {
   /** Stop polling and remove foreground listener. */
   close(): void;
@@ -62,7 +65,7 @@ const POLL_INTERVAL_MS = 30_000;
 export function watchVaultByPoll(
   vaultFS: VaultFS,
   index: VaultIndex,
-  emit: (channel: string, payload: unknown) => void,
+  emit: (channel: string, payload: EmitPayload) => void,
   selfWriteHashes: Map<string, string>,
   scanConflicts?: () => Promise<ConflictScanEntry[]>,
 ): CapacitorWatcher {
