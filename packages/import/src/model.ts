@@ -24,6 +24,14 @@ export interface AnytypeObject {
   emoji?: string;
 }
 
+/** A binary attachment ready to be copied into the vault. */
+export interface PreparedAttachment {
+  /** Vault-relative POSIX path (e.g. "files/report.pdf"). */
+  vaultPath: string;
+  /** Base64-encoded file contents. */
+  base64: string;
+}
+
 /** A note ready to be written to the vault. */
 export interface PreparedNote {
   /** Vault-relative path (e.g. "My Note.md"). */

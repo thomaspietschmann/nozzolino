@@ -5,6 +5,7 @@ import { parseFrontmatter } from '@notes-app/common';
 import { MemoryImportSource } from './ImportSource.js';
 import { prepareImport } from './prepareImport.js';
 import { writeImport } from './writeImport.js';
+import type { PreparedAttachment } from './model.js';
 
 const SAMPLE_FILES: Record<string, string> = {
   'note-x.md': `---
@@ -78,12 +79,12 @@ describe('writeImport', () => {
     expect(backlinkTitles).toContain('Note X');
   });
 
-  it('calls onProgress with (done, total) for each note', async () => {
+  it('calls onProgress with (done, total) for each note (no attachments)', async () => {
     const { ctx } = await buildCtx();
     const source = new MemoryImportSource(SAMPLE_FILES);
     const { notes } = await prepareImport(source);
     const calls: Array<[number, number]> = [];
-    await writeImport(ctx, notes, (done, total) => {
+    await writeImport(ctx, notes, undefined, (done, total) => {
       calls.push([done, total]);
     });
 
@@ -120,5 +121,54 @@ describe('writeImport', () => {
     const { frontmatter } = parseFrontmatter(content);
     expect(frontmatter.tags).toContain('tagX');
     expect(frontmatter.created).toBe('2024-03-01T00:00:00Z');
+  });
+
+  it('writes binary attachments to the vault via writeBinaryFile', async () => {
+    const { vaultFS, ctx } = await buildCtx();
+    const attachments: PreparedAttachment[] = [
+      { vaultPath: 'files/report.pdf', base64: 'dGVzdHBkZg==' },
+    ];
+
+    const source = new MemoryImportSource(SAMPLE_FILES);
+    const { notes } = await prepareImport(source);
+    await writeImport(ctx, notes, attachments);
+
+    const binaries = vaultFS.getBinaryFiles();
+    expect(binaries.has('files/report.pdf')).toBe(true);
+    expect(binaries.get('files/report.pdf')).toBe('dGVzdHBkZg==');
+  });
+
+  it('includes attachments in onProgress total', async () => {
+    const { ctx } = await buildCtx();
+    const attachments: PreparedAttachment[] = [
+      { vaultPath: 'files/report.pdf', base64: 'dGVzdA==' },
+    ];
+
+    const source = new MemoryImportSource(SAMPLE_FILES);
+    const { notes } = await prepareImport(source);
+    const calls: Array<[number, number]> = [];
+    await writeImport(ctx, notes, attachments, (done, total) => {
+      calls.push([done, total]);
+    });
+
+    const expectedTotal = notes.length + attachments.length;
+    expect(calls).toHaveLength(expectedTotal);
+    expect(calls[calls.length - 1]).toEqual([expectedTotal, expectedTotal]);
+  });
+
+  it('does not call onDidWrite for binary attachments', async () => {
+    const { ctx } = await buildCtx();
+    const onDidWrite = vi.fn();
+    ctx.onDidWrite = onDidWrite;
+    const attachments: PreparedAttachment[] = [
+      { vaultPath: 'files/report.pdf', base64: 'dGVzdA==' },
+    ];
+
+    const source = new MemoryImportSource(SAMPLE_FILES);
+    const { notes } = await prepareImport(source);
+    await writeImport(ctx, notes, attachments);
+
+    // onDidWrite should only be called for notes, not attachments
+    expect(onDidWrite).toHaveBeenCalledTimes(notes.length);
   });
 });

@@ -1,5 +1,5 @@
 // Model types
-export type { AnytypeObject, PreparedNote, ImportSummary } from './model.js';
+export type { AnytypeObject, PreparedNote, PreparedAttachment, ImportSummary } from './model.js';
 
 // Import source abstractions
 export type { ImportSource } from './ImportSource.js';

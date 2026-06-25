@@ -1,7 +1,7 @@
 import { parseFrontmatter } from '@notes-app/common';
 import { atomicWrite } from '@notes-app/vault';
 import type { VaultOpsContext } from '@notes-app/vault';
-import type { PreparedNote } from './model.js';
+import type { PreparedNote, PreparedAttachment } from './model.js';
 
 /**
  * Writes prepared notes to the vault.
@@ -24,20 +24,26 @@ import type { PreparedNote } from './model.js';
 export async function writeImport(
   ctx: VaultOpsContext,
   notes: PreparedNote[],
+  attachments?: PreparedAttachment[],
   onProgress?: (done: number, total: number) => void
 ): Promise<void> {
-  const total = notes.length;
+  const attachmentList = attachments ?? [];
+  const total = notes.length + attachmentList.length;
+  let done = 0;
 
-  for (let i = 0; i < notes.length; i++) {
-    const note = notes[i];
-    if (!note) continue;
-
+  for (const note of notes) {
     // Write the full prepared content (frontmatter already serialized)
     await atomicWrite(ctx.vaultFS, note.relativePath, note.content);
     ctx.onDidWrite?.(note.relativePath, note.content);
     await ctx.index.addOrRefresh(ctx.vaultFS, note.relativePath);
 
-    onProgress?.(i + 1, total);
+    onProgress?.(++done, total);
+  }
+
+  for (const att of attachmentList) {
+    await ctx.vaultFS.writeBinaryFile(att.vaultPath, att.base64);
+    // No onDidWrite for binaries — they are not tracked by the text index.
+    onProgress?.(++done, total);
   }
 }
 

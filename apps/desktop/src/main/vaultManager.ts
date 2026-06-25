@@ -250,8 +250,8 @@ export async function importAnytypePreview(filePath: string): Promise<ImportSumm
 export async function importAnytypeRun(filePath: string, win: BrowserWindow): Promise<ImportSummary> {
   const buf = await readFileNode(filePath);
   const source = await ZipImportSource.fromBuffer(new Uint8Array(buf));
-  const { notes, summary } = await prepareImport(source);
-  await writeImport(getCtx(), notes, (done, total) => {
+  const { notes, attachments, summary } = await prepareImport(source);
+  await writeImport(getCtx(), notes, attachments, (done, total) => {
     win.webContents.send(IPC.IMPORT_PROGRESS, { done, total });
   });
   return summary;

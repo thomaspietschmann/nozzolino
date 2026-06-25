@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '@notes-app/common';
-import { MemoryImportSource } from './ImportSource.js';
+import { MemoryImportSource, DirImportSource } from './ImportSource.js';
 import { prepareImport } from './prepareImport.js';
 
 const SAMPLE_FILES: Record<string, string> = {
@@ -36,6 +38,8 @@ Links to external [Resource](https://external.example/page.md).
 `,
   'index.md': `# Index\n\nShould be skipped.\n`,
 };
+
+const FIXTURE_DIR = join(fileURLToPath(import.meta.url), '..', '__fixtures__', 'anytype-sample');
 
 describe('prepareImport', () => {
   it('returns correct noteCount (skips index.md)', async () => {
@@ -100,5 +104,58 @@ describe('prepareImport', () => {
       const { frontmatter } = parseFrontmatter(note.content);
       expect(frontmatter.id).toBeUndefined();
     }
+  });
+
+  // ── Attachment copy tests (use real fixture with files/report.pdf) ──────────
+
+  it('returns report.pdf attachment with non-empty base64 and correct vaultPath', async () => {
+    const source = await new DirImportSource(FIXTURE_DIR).init();
+    const { attachments } = await prepareImport(source);
+
+    const pdf = attachments.find((a) => a.vaultPath === 'files/report.pdf');
+    expect(pdf).toBeDefined();
+    expect(pdf!.base64.length).toBeGreaterThan(0);
+    // Verify it round-trips to the correct vaultPath
+    expect(pdf!.vaultPath).toBe('files/report.pdf');
+  });
+
+  it('attachment base64 decodes to the same bytes as readBinary', async () => {
+    const source = await new DirImportSource(FIXTURE_DIR).init();
+    const { attachments } = await prepareImport(source);
+
+    const pdf = attachments.find((a) => a.vaultPath === 'files/report.pdf');
+    expect(pdf).toBeDefined();
+
+    const original = await source.readBinary('files/report.pdf');
+    const decoded = Buffer.from(pdf!.base64, 'base64');
+    expect(decoded).toEqual(Buffer.from(original));
+  });
+
+  it('deduplicates attachment refs (same ref only appears once)', async () => {
+    // Build a source where two notes reference the same attachment
+    const filesWithDupAttachment: Record<string, string> = {
+      'note-1.md': `# Note 1\n\n[Download](files/shared.pdf)\n`,
+      'note-2.md': `# Note 2\n\n[Also here](files/shared.pdf)\n`,
+      'files/shared.pdf': 'dummy',
+    };
+    const source = new MemoryImportSource(filesWithDupAttachment);
+    const { attachments } = await prepareImport(source);
+
+    const refs = attachments.map((a) => a.vaultPath);
+    const unique = new Set(refs);
+    expect(unique.size).toBe(refs.length);
+    expect(refs).toContain('files/shared.pdf');
+  });
+
+  it('note body attachment link is unchanged after prepareImport', async () => {
+    const source = await new DirImportSource(FIXTURE_DIR).init();
+    const { notes } = await prepareImport(source);
+
+    // Beta Note.md references files/report.pdf
+    const betaNote = notes.find((n) => n.relativePath === 'Beta Note.md');
+    expect(betaNote).toBeDefined();
+    const { body } = parseFrontmatter(betaNote!.content);
+    // The original link should be preserved verbatim — no rewriting
+    expect(body).toContain('files/report.pdf');
   });
 });
