@@ -38,6 +38,24 @@ pnpm test        # Vitest unit tests
 pnpm build       # Build all packages
 ```
 
+### Self-hosted sync server (optional)
+
+Instead of Syncthing you can run the bundled server and point the app at it
+(**Settings → Sync → Server**):
+
+```bash
+docker build -t notes-sync-server ./server
+docker run -d -e SYNC_TOKEN=your-secret -p 8080:8080 \
+  -v /path/to/vault:/data notes-sync-server
+```
+
+### End-to-end tests
+
+```bash
+pnpm --filter @notes-app/desktop test:e2e   # Electron (Playwright)
+pnpm --filter @notes-app/mobile-e2e test     # Android (Appium; needs an emulator + JDK 21+)
+```
+
 ---
 
 ## Project structure
@@ -50,17 +68,19 @@ notes-app/
 │   ├── vault/          File system abstraction, note indexer, file watcher  (M1)
 │   ├── search/         Full-text search via Lunr.js  (M3)
 │   ├── graph/          Graph data model for Cytoscape  (M4)
-│   ├── sync/           Sync client  (M5/M7)
+│   ├── sync/           Sync client + bidirectional SyncEngine  (M5/M7)
+│   ├── import/         Anytype import (parser + relation/link mapping)  (M8)
 │   └── ui/             All React components, shared across platforms  (M1)
 ├── apps/
 │   ├── desktop/        Electron shell (main process, IPC, electron-builder)  (M1)
-│   └── android/        Capacitor project + Kotlin plugins  (M6)
+│   └── mobile/         Capacitor project + Kotlin plugins  (M6)
 ├── server/             Self-hosted sync server (Node.js + Express, OCI image)  (M7)
 └── docs/               Architecture decisions (ADRs), user stories, roadmap
 ```
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full build plan.
-Milestones M0 (foundation) and M1 (desktop editor) are complete.
+All milestones **M0–M8 are complete**: desktop + Android, Syncthing **and** self-hosted server
+sync with conflict resolution, full-text search, graph view, and Anytype import.
 
 ---
 

@@ -23,6 +23,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     setDirty,
     notes,
     createNote,
+    selectNote,
     relationshipTypes,
     registerEditorFlush,
     pendingScrollTerm,
@@ -81,10 +82,18 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     [createNote]
   );
 
+  const onNavigate = useCallback(
+    (title: string) => {
+      const target = notes.find((n) => n.title.toLowerCase() === title.toLowerCase());
+      if (target) void selectNote(target.id);
+    },
+    [notes, selectNote]
+  );
+
   // Keep optsRef current so the external-update effect always has all plugins (V2 fix).
   const opts = useMemo<CreateEditorStateOptions>(
-    () => ({ saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote }),
-    [saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote]
+    () => ({ saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote, onNavigate }),
+    [saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote, onNavigate]
   );
   optsRef.current = opts;
 

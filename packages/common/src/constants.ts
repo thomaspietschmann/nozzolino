@@ -81,8 +81,18 @@ export const IPC = {
   SYNC_FORCE_SYNC: 'sync:forceSync',
   SYNC_RESOLVE_CONFLICT: 'sync:resolveConflict',
   SYNC_CREATE_CONFLICT_FROM_EXTERNAL: 'sync:createConflictFromExternal',
+  // Sync — server mode (M7) config + status
+  SYNC_GET_CONFIG: 'sync:getConfig',
+  SYNC_SET_CONFIG: 'sync:setConfig',
+  SYNC_TEST_CONNECTION: 'sync:testConnection',
+  SYNC_STATUS_CHANGED: 'sync:statusChanged',
   // Export
   EXPORT_ZIP: 'export:zip',
+  // Import — Anytype (M8)
+  IMPORT_ANYTYPE_PICK: 'import:anytypePick',
+  IMPORT_ANYTYPE_PREVIEW: 'import:anytypePreview',
+  IMPORT_ANYTYPE_RUN: 'import:anytypeRun',
+  IMPORT_PROGRESS: 'import:progress',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

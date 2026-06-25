@@ -82,6 +82,16 @@ export interface VaultConfig {
   syncToken?: string;
 }
 
+/** Sync configuration subset persisted in app user data and edited in settings (M7). */
+export interface SyncSettings {
+  /** Which sync mechanism is active. */
+  syncMode: 'syncthing' | 'server' | 'none';
+  /** URL of the bundled sync server (server mode only). */
+  serverUrl?: string;
+  /** Bearer token for the sync server (server mode only). */
+  syncToken?: string;
+}
+
 /** A single result returned by the search package. */
 export interface SearchResult {
   noteId: string;

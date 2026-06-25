@@ -4,6 +4,8 @@ import type { SyncStatus } from '@notes-app/common';
 import { ipc } from '../ipc.js';
 import { FileTree } from './FileTree.js';
 import { MonthBrowser } from './MonthBrowser.js';
+import { SyncSettings } from './SyncSettings.js';
+import { ImportDialog } from './ImportDialog.js';
 import { ACCENT_PRESETS } from '@notes-app/common';
 
 // On macOS with titleBarStyle:'hiddenInset' the traffic lights (≈76px wide) sit
@@ -16,6 +18,7 @@ export function Sidebar() {
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [showNewNote, setShowNewNote] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [viewMode, setViewMode] = useState<'alpha' | 'month'>('alpha');
 
   const vaultName = vaultRoot ? vaultRoot.split('/').pop() ?? vaultRoot : '';
@@ -156,16 +159,27 @@ export function Sidebar() {
             </div>
           </div>
 
-          <div>
+          <SyncSettings />
+
+          <div className="space-y-1.5">
             <button
               onClick={() => void ipc.exportZip()}
               className="w-full text-xs py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
             >
               ↓ Export vault to ZIP…
             </button>
+            <button
+              data-testid="import-anytype-button"
+              onClick={() => setShowImport(true)}
+              className="w-full text-xs py-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+            >
+              ↑ Import from Anytype…
+            </button>
           </div>
         </div>
       )}
+
+      {showImport && <ImportDialog onClose={() => setShowImport(false)} />}
     </aside>
   );
 }

@@ -23,10 +23,9 @@ test.afterAll(() => cleanup(ctx));
 
 // ── As a user, I want to navigate to a note by clicking a wikilink ────────────
 
-// deferred: resolved-wikilink click navigation is not yet implemented —
-// handleClickOn in wikilink.ts only fires for unresolved links; hover-peek
-// is the only interaction for resolved links. Implement with Cmd/Ctrl+click later.
-test.skip('clicking a wikilink opens the linked note', async () => {
+// Resolved-wikilink click navigation: handleClickOn in wikilink.ts routes
+// resolved links to onNavigate (→ store.selectNote); unresolved links create.
+test('clicking a wikilink opens the linked note', async () => {
   await sidebar(ctx.page).getByText('Alpha').click();
   await expect(ctx.page.locator('.ProseMirror')).toContainText('See');
   await ctx.page.locator('span.wikilink[data-title="Beta"]').click();

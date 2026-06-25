@@ -21,10 +21,11 @@ export interface CreateEditorStateOptions {
   getTypeSuggestions?: GetTypeSuggestions;
   isResolved?: (title: string) => boolean;
   onCreateNote?: (title: string) => void;
+  onNavigate?: (title: string) => void;
 }
 
 export function createEditorState(options: CreateEditorStateOptions = {}): EditorState {
-  const { content = '', saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote } = options;
+  const { content = '', saveImage, getSuggestions, getTypeSuggestions, isResolved, onCreateNote, onNavigate } = options;
 
   const doc = fromMarkdown(content);
 
@@ -45,7 +46,7 @@ export function createEditorState(options: CreateEditorStateOptions = {}): Edito
   }
 
   if (isResolved) {
-    plugins.push(buildWikilinkValidationPlugin(isResolved, onCreateNote));
+    plugins.push(buildWikilinkValidationPlugin(isResolved, onCreateNote, onNavigate));
   }
 
   if (saveImage) {

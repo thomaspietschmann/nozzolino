@@ -6,6 +6,13 @@ import { registerIpcHandlers } from './ipc';
 // Playwright can still interact with hidden windows via webContents.
 const isE2E = !!process.env['E2E_VAULT_PATH'];
 
+// Isolate persisted config (settings.json, sync-etag-cache.json) during E2E so
+// tests never read or clobber the user's real app data. Must run before any
+// app.getPath('userData') call (store.ts / etagCacheStore.ts compute paths at import).
+if (isE2E && process.env['E2E_USER_DATA']) {
+  app.setPath('userData', process.env['E2E_USER_DATA']);
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,

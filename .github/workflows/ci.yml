@@ -28,8 +28,40 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: Type check (server)
+        run: pnpm --filter @notes-app/server typecheck
+
+      - name: Type check (desktop)
+        run: pnpm --filter @notes-app/desktop typecheck
+
       - name: Lint
         run: pnpm lint
 
       - name: Test
         run: pnpm test
+
+  e2e-desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build desktop app
+        run: pnpm --filter @notes-app/desktop build
+
+      - name: Run desktop e2e (Electron under xvfb)
+        run: xvfb-run -a pnpm --filter @notes-app/desktop test:e2e

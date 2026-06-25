@@ -5,6 +5,7 @@ export type {
   SyncStatus,
   ConflictRecord,
   VaultConfig,
+  SyncSettings,
   SearchResult,
 } from './types.js';
 
@@ -28,3 +29,5 @@ export { WIKILINK_REGEX, parseWikiLinks, replaceWikiLinkTarget } from './wikilin
 export { posixJoin, posixDirname, posixBasename } from './posixPath.js';
 
 export { sha1Hex } from './sha1.js';
+
+export { sha256Hex16 } from './sha256.js';

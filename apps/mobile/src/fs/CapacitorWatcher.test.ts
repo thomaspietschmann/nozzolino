@@ -112,7 +112,7 @@ describe('CapacitorWatcher — conflict diff (M6.5)', () => {
 
     const detected = emitted.filter((e) => e.channel === 'vault:conflictDetected');
     expect(detected).toHaveLength(1);
-    expect((detected[0].payload as { conflictFilePath: string }).conflictFilePath).toBe(NEW_CONFLICT);
+    expect((detected[0]!.payload as { conflictFilePath: string }).conflictFilePath).toBe(NEW_CONFLICT);
 
     watcher.close();
   });
@@ -142,7 +142,7 @@ describe('CapacitorWatcher — conflict diff (M6.5)', () => {
 
     const removed = emitted.filter((e) => e.channel === 'vault:conflictRemoved');
     expect(removed).toHaveLength(1);
-    expect(removed[0].payload).toBe(CONFLICT);
+    expect(removed[0]!.payload).toBe(CONFLICT);
 
     watcher.close();
   });

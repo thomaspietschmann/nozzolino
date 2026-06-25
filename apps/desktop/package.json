@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@notes-app/common": "workspace:*",
+    "@notes-app/import": "workspace:*",
     "@notes-app/sync": "workspace:*",
     "@notes-app/ui": "workspace:*",
     "@notes-app/vault": "workspace:*",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.0",
     "@types/archiver": "^6.0.3",
+    "jszip": "^3.10.1",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

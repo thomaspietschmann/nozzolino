@@ -14,8 +14,10 @@ import {
   type VaultOpsContext,
   type VaultFS,
 } from '@notes-app/vault';
-import type { NoteRecord } from '@notes-app/common';
-import { sha1Hex } from '@notes-app/common';
+import type { NoteRecord, SyncSettings, SyncStatus } from '@notes-app/common';
+import { sha1Hex, sha256Hex16 } from '@notes-app/common';
+import { SyncClient, SyncEngine, InMemoryEtagCache } from '@notes-app/sync';
+import type { SyncFS } from '@notes-app/sync';
 import { WebVaultFS } from '../fs/WebVaultFS.js';
 import { CapacitorVaultFS, NativeVaultPlugin } from '../fs/CapacitorVaultFS.js';
 import { watchVaultByPoll, type CapacitorWatcher } from '../fs/CapacitorWatcher.js';
@@ -167,6 +169,111 @@ async function synthesizeChanged(
 }
 
 // ---------------------------------------------------------------------------
+// Sync — server mode (M7), mirrors the desktop syncManager
+// ---------------------------------------------------------------------------
+
+const SYNC_CONFIG_KEY = 'notes-app:syncConfig';
+const ETAG_CACHE_KEY = 'notes-app:etagCache';
+const MOBILE_POLL_INTERVAL_MS = 120_000;
+
+let syncEngine: SyncEngine | null = null;
+let syncTimer: ReturnType<typeof setInterval> | null = null;
+
+function readSyncConfig(): SyncSettings {
+  try {
+    const raw = localStorage.getItem(SYNC_CONFIG_KEY);
+    if (raw) return JSON.parse(raw) as SyncSettings;
+  } catch {
+    /* ignore */
+  }
+  return { syncMode: 'syncthing' };
+}
+
+function writeSyncConfig(config: SyncSettings): void {
+  try {
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** localStorage-backed ETag cache so server state survives app restarts. */
+class LocalStorageEtagCache extends InMemoryEtagCache {
+  override async load(): Promise<void> {
+    try {
+      const raw = localStorage.getItem(ETAG_CACHE_KEY);
+      this.fromJSON(raw ? (JSON.parse(raw) as Record<string, string>) : {});
+    } catch {
+      this.fromJSON({});
+    }
+  }
+  override async persist(): Promise<void> {
+    try {
+      localStorage.setItem(ETAG_CACHE_KEY, JSON.stringify(this.toJSON()));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function stopMobileSync(): void {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = null;
+  syncEngine = null;
+}
+
+function startMobileSync(config: SyncSettings): void {
+  stopMobileSync();
+  if (config.syncMode !== 'server' || !config.serverUrl || !config.syncToken) return;
+  if (!vaultFS || !index) return;
+
+  const liveFS = vaultFS;
+  const liveIndex = index;
+  const client = new SyncClient(config.serverUrl, config.syncToken);
+
+  const fs: SyncFS = {
+    readFile: (p) => liveFS.readFile(p),
+    writeFile: async (p, c) => {
+      selfWriteHashes.set(p, sha1Hex(c));
+      await liveFS.writeFile(p, c);
+    },
+    deleteFile: (p) => liveFS.deleteFile(p),
+    listDirectory: (p) => liveFS.listDirectory(p),
+    exists: (p) => liveFS.exists(p),
+    stat: (p) => liveFS.stat(p),
+  };
+
+  syncEngine = new SyncEngine({
+    client,
+    fs,
+    cache: new LocalStorageEtagCache(),
+    hash: sha256Hex16,
+    onStatus: (status: SyncStatus) => emit('sync:statusChanged', status),
+    onConflict: async (path, serverContent) => {
+      const record = await createConflictFromExternal(getCtx(), path, new Date().toISOString());
+      selfWriteHashes.set(path, sha1Hex(serverContent));
+      await liveFS.writeFile(path, serverContent);
+      const rec = await liveIndex.addOrRefresh(liveFS, path);
+      emit('vault:conflictDetected', record);
+      emit('vault:fileChanged', { event: 'change', relativePath: path, record: rec, selfWrite: true });
+    },
+    onLocalWrite: async (path) => {
+      const rec = await liveIndex.addOrRefresh(liveFS, path);
+      emit('vault:fileChanged', { event: 'change', relativePath: path, record: rec, selfWrite: true });
+    },
+    onLocalDelete: async (path) => {
+      liveIndex.removeByPath(path);
+      emit('vault:fileDeleted', path);
+    },
+  });
+
+  void syncEngine.syncOnce();
+  syncTimer = setInterval(() => {
+    void syncEngine?.syncOnce();
+  }, MOBILE_POLL_INTERVAL_MS);
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch table
 // ---------------------------------------------------------------------------
 
@@ -223,6 +330,9 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
           () => scanExistingConflicts(getCtx()),
         );
       }
+
+      // Start server-mode sync if configured (no-op for syncthing/none).
+      startMobileSync(readSyncConfig());
 
       return index.getAllNotes();
     }
@@ -328,6 +438,46 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
     case 'export:zip': {
       // Deferred (M6.2+): jszip in-WebView
       return null;
+    }
+
+    // -----------------------------------------------------------------------
+    case 'sync:getConfig': {
+      return readSyncConfig();
+    }
+
+    case 'sync:setConfig': {
+      const config = args[0] as SyncSettings;
+      writeSyncConfig(config);
+      startMobileSync(config);
+      return undefined;
+    }
+
+    case 'sync:testConnection': {
+      const [url, token] = args as [string, string];
+      try {
+        const res = await new SyncClient(url, token).health();
+        return { ok: res.ok, version: res.version };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    case 'sync:forceSync': {
+      await syncEngine?.syncOnce();
+      return undefined;
+    }
+
+    // -----------------------------------------------------------------------
+    // Anytype import (M8). Desktop-first: native file picking on Android is
+    // deferred, so picking is a graceful no-op (returns null → dialog idles).
+    // The pure import pipeline itself is platform-neutral and ready to wire to
+    // a Capacitor file picker when added.
+    case 'import:anytypePick': {
+      return null;
+    }
+    case 'import:anytypePreview':
+    case 'import:anytypeRun': {
+      throw new Error('Anytype import is not yet available on mobile');
     }
 
     default:

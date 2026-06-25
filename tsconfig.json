@@ -6,6 +6,7 @@
     { "path": "./packages/editor" },
     { "path": "./packages/search" },
     { "path": "./packages/graph" },
-    { "path": "./packages/sync" }
+    { "path": "./packages/sync" },
+    { "path": "./packages/import" }
   ]
 }

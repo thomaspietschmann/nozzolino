@@ -415,7 +415,8 @@ function insertWikilinkNode(
 
 export function buildWikilinkValidationPlugin(
   isResolved: (title: string) => boolean,
-  onCreateNote?: (title: string) => void
+  onCreateNote?: (title: string) => void,
+  onNavigate?: (title: string) => void
 ): Plugin<DecorationSet> {
   const key = new PluginKey<DecorationSet>('wikilinkValidation');
 
@@ -434,11 +435,16 @@ export function buildWikilinkValidationPlugin(
       decorations(state) {
         return key.getState(state) ?? DecorationSet.empty;
       },
-      // Click on an unresolved wikilink → create the target note.
+      // Click on a wikilink: resolved → navigate to the target note;
+      // unresolved → create it.
       handleClickOn(_view, _pos, node, _nodePos, _event, _direct) {
         if (node.type.name !== 'wikilink') return false;
         const title = (node.attrs as { title: string; resolved: boolean }).title;
         const resolved = (node.attrs as { resolved: boolean }).resolved;
+        if (resolved && onNavigate) {
+          onNavigate(title);
+          return true;
+        }
         if (!resolved && onCreateNote) {
           onCreateNote(title);
           return true;

@@ -1,5 +1,20 @@
 import { IPC } from '@notes-app/common';
-import type { NoteRecord, ConflictRecord } from '@notes-app/common';
+import type { NoteRecord, ConflictRecord, SyncSettings, SyncStatus } from '@notes-app/common';
+
+export interface TestConnectionResult {
+  ok: boolean;
+  version?: string;
+  error?: string;
+}
+
+/** Mirror of @notes-app/import's ImportSummary (kept local so ui stays decoupled). */
+export interface ImportSummary {
+  noteCount: number;
+  tagCount: number;
+  linkCount: number;
+  unresolvedLinks: number;
+  attachmentCount: number;
+}
 
 export interface RecentVault {
   path: string;
@@ -93,5 +108,43 @@ export const ipc = {
 
   exportZip(): Promise<string | null> {
     return window.electronAPI.invoke<string | null>(IPC.EXPORT_ZIP);
+  },
+
+  // ─── Sync — server mode (M7) ──────────────────────────────────────────────
+  getSyncConfig(): Promise<SyncSettings> {
+    return window.electronAPI.invoke<SyncSettings>(IPC.SYNC_GET_CONFIG);
+  },
+
+  setSyncConfig(config: SyncSettings): Promise<void> {
+    return window.electronAPI.invoke<void>(IPC.SYNC_SET_CONFIG, config);
+  },
+
+  testConnection(url: string, token: string): Promise<TestConnectionResult> {
+    return window.electronAPI.invoke<TestConnectionResult>(IPC.SYNC_TEST_CONNECTION, url, token);
+  },
+
+  forceSync(): Promise<void> {
+    return window.electronAPI.invoke<void>(IPC.SYNC_FORCE_SYNC);
+  },
+
+  onSyncStatusChanged(handler: (status: SyncStatus) => void): () => void {
+    return window.electronAPI.on(IPC.SYNC_STATUS_CHANGED, handler as (...args: unknown[]) => void);
+  },
+
+  // ─── Import — Anytype (M8) ────────────────────────────────────────────────
+  pickAnytypeFile(): Promise<string | null> {
+    return window.electronAPI.invoke<string | null>(IPC.IMPORT_ANYTYPE_PICK);
+  },
+
+  previewAnytypeImport(filePath: string): Promise<ImportSummary> {
+    return window.electronAPI.invoke<ImportSummary>(IPC.IMPORT_ANYTYPE_PREVIEW, filePath);
+  },
+
+  runAnytypeImport(filePath: string): Promise<ImportSummary> {
+    return window.electronAPI.invoke<ImportSummary>(IPC.IMPORT_ANYTYPE_RUN, filePath);
+  },
+
+  onImportProgress(handler: (p: { done: number; total: number }) => void): () => void {
+    return window.electronAPI.on(IPC.IMPORT_PROGRESS, handler as (...args: unknown[]) => void);
   },
 };

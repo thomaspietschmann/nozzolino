@@ -108,7 +108,7 @@ Type these patterns at the **start of a line** (or inline) and they convert auto
 
 Type `[[` anywhere in the editor to open the **wikilink autocomplete**. Start typing a note title to filter results; press `Enter` or click a result to insert the link.
 
-- **Resolved link** (note exists) — hover over it to see a preview peek. Click to navigate. *(Navigation: right-click → open in current note, or use the command palette.)*
+- **Resolved link** (note exists) — hover over it to see a preview peek; **click it to open the linked note**.
 - **Unresolved link** (note does not exist yet) — shown in amber. Click it to create the note immediately.
 
 All wikilinks are stored as plain Markdown `[[Title]]` syntax, compatible with Obsidian, Logseq, and other tools.
@@ -180,7 +180,35 @@ Click **A–Z** to switch back to the folder tree.
 
 ## Sync & conflicts
 
-The app is designed to work with **Syncthing** (or any file-sync tool) in your vault folder.
+The app supports two sync mechanisms (choose under **Settings → Sync**):
+
+1. **Syncthing** (default) — point Syncthing (or any file-sync tool) at your vault folder. No app config required.
+2. **Bundled server** — a self-hosted sync server you run yourself (see below).
+
+### Sync modes (Settings → Sync)
+
+Open the sidebar **⚙ Settings** panel → **Sync** and pick a mode:
+
+- **Syncthing** — the app only watches files and resolves conflicts; transport is handled externally.
+- **Server** — enter the server **URL** and **token**, then **Test** the connection. The app polls the
+  server (~60s on desktop, ~120s on mobile foreground), pushing local changes and pulling remote ones.
+  When both sides changed the same note, it falls back to the same conflict-resolution flow as Syncthing.
+- **None** — no sync.
+
+### Running the bundled sync server
+
+The server is a small self-hosted container (single user). Run it on a home server or VPS:
+
+```bash
+docker run -d \
+  -e SYNC_TOKEN=your-secret-token \
+  -p 8080:8080 \
+  -v /path/to/your/vault:/data \
+  ghcr.io/<owner>/notes-app-server:latest
+```
+
+Put HTTPS in front of it with a reverse proxy (Caddy/nginx). Then in the app set **Sync → Server**,
+URL = your server URL, token = `SYNC_TOKEN`.
 
 ### Sync status dot
 
@@ -198,6 +226,19 @@ The coloured dot at the top of the sidebar shows sync status:
 When the same note is edited on two devices between syncs, a conflict file (`.sync-conflict-…`) appears in the vault. The app detects this and shows a **conflict banner** above the editor. Click **"Review versions"** to open the diff view, pick the content you want to keep, and click **"Resolve"**.
 
 **On a single device** — the app never creates false conflicts. Your own autosave writes are tracked internally and never trigger the conflict flow.
+
+---
+
+## Import from Anytype
+
+Migrate an existing Anytype vault. Export your Anytype space as **Markdown** (a `.zip`), then in the app:
+
+1. Open **⚙ Settings → "↑ Import from Anytype…"**.
+2. Choose the exported `.zip`. A **preview** shows how many notes, tags and links will be imported.
+3. Click **Import** to write the notes into your vault.
+
+The importer maps Anytype **relations → tags** and **internal links → `[[wikilinks]]`**. Attachments are
+counted in the preview but not copied in this version. Import currently runs on desktop.
 
 ---
 

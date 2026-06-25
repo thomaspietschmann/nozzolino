@@ -121,6 +121,11 @@ export function AppShell() {
     };
   }, [setSyncStatus]);
 
+  // Server-mode sync status (M7) pushed from the main process / bridge.
+  useEffect(() => {
+    return ipc.onSyncStatusChanged((status) => setSyncStatus(status));
+  }, [setSyncStatus]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

@@ -20,8 +20,12 @@
 | M5 | Sync (Syncthing) | F, H(export) | ✓ |
 | M6 | Android | G | ✓ |
 | **── MVP boundary ──** | | | |
-| M7 | Bundled sync server | F(server) | — |
-| M8 | Anytype import | H(import) | — |
+| M7 | Bundled sync server ✅ | F(server) | — |
+| M8 | Anytype import ✅ | H(import) | — |
+
+> **Post-MVP status:** M7 and M8 are now implemented and tested. The full app
+> (M0–M8) ships desktop + Android, Syncthing **and** self-hosted server sync, plus
+> Anytype import.
 
 The MVP (M0–M6) delivers: Linux desktop + Android, plain-Markdown vault,
 WYSIWYG editor, wiki-links with relationships, full-text search, graph view,
@@ -187,7 +191,7 @@ with conflict resolution. No proprietary services. Usable as a daily driver.
 
 ---
 
-## M7 — Bundled Sync Server (post-MVP)
+## M7 — Bundled Sync Server (post-MVP) — ✅ DONE
 
 **Goal:** An alternative to Syncthing: a self-hosted, OCI-containerised sync server that the
 user can run on their home server or VPS.
@@ -212,7 +216,7 @@ starts the server. Desktop and Android clients sync to it. Conflicts surface via
 
 ---
 
-## M8 — Anytype Import (post-MVP)
+## M8 — Anytype Import (post-MVP) — ✅ DONE
 
 **Goal:** Migrate the user's existing data from Anytype into the vault.
 

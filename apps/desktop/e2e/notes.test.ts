@@ -67,22 +67,10 @@ test('creating a note adds it to the sidebar and opens the editor', async () => 
 // ── As a user, I want to delete a note ───────────────────────────────────────
 
 test('deleting a note removes it from the sidebar', async () => {
-  // Ensure BrandNew is open
-  await sidebar(ctx.page).getByText('BrandNew').click();
-  // Delete via command palette
-  await ctx.page.keyboard.press('Control+k');
-  const palette = ctx.page.locator('input[placeholder*="Search"]');
-  await palette.fill('delete');
-  // The "Delete note" action should appear — click it
-  const deleteAction = ctx.page.getByRole('button', { name: /delete/i }).first();
-  if (await deleteAction.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await deleteAction.click();
-  } else {
-    // Fall back: look for a delete button in the note header or sidebar context menu
-    await ctx.page.keyboard.press('Escape');
-    test.skip();
-    return;
-  }
+  // BrandNew was created by the previous test. Delete it via the sidebar
+  // right-click context menu → "Delete note".
+  await sidebar(ctx.page).getByText('BrandNew').click({ button: 'right' });
+  await ctx.page.getByText('Delete note').click();
   await expect(sidebar(ctx.page).getByText('BrandNew')).toBeHidden({ timeout: 5_000 });
 });
 

@@ -20,14 +20,25 @@ export interface TestCtx {
   app: ElectronApplication;
   page: Page;
   vaultDir: string;
+  userDataDir: string;
+}
+
+export interface LaunchOptions {
+  /** Extra environment variables passed to the Electron process (e.g. E2E_IMPORT_ZIP). */
+  env?: Record<string, string>;
 }
 
 /**
  * Launches the Electron app with a fresh temp vault pre-populated with the
  * given files (vault-relative paths → content). Waits for the sidebar to load.
+ * Persisted config is isolated to a per-launch temp userData dir.
  */
-export async function launch(files: Record<string, string>): Promise<TestCtx> {
+export async function launch(
+  files: Record<string, string>,
+  opts: LaunchOptions = {},
+): Promise<TestCtx> {
   const vaultDir = await mkdtemp(join(tmpdir(), 'notes-e2e-'));
+  const userDataDir = await mkdtemp(join(tmpdir(), 'notes-e2e-ud-'));
 
   for (const [relPath, content] of Object.entries(files)) {
     const abs = join(vaultDir, relPath);
@@ -41,7 +52,12 @@ export async function launch(files: Record<string, string>): Promise<TestCtx> {
 
   const app = await electron.launch({
     args: [MAIN],
-    env: { ...process.env, E2E_VAULT_PATH: vaultDir },
+    env: {
+      ...process.env,
+      E2E_VAULT_PATH: vaultDir,
+      E2E_USER_DATA: userDataDir,
+      ...opts.env,
+    },
   });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
@@ -54,12 +70,17 @@ export async function launch(files: Record<string, string>): Promise<TestCtx> {
     await page.waitForSelector(`aside >> text=${firstTitle}`, { timeout: 10_000 });
   }
 
-  return { app, page, vaultDir };
+  return { app, page, vaultDir, userDataDir };
 }
 
-export async function cleanup({ app, vaultDir }: TestCtx): Promise<void> {
-  await app.close();
+export async function cleanup({ app, vaultDir, userDataDir }: TestCtx): Promise<void> {
+  try {
+    await app.close();
+  } catch {
+    // App may already be closed (e.g. a relaunch test) — ignore.
+  }
   await rm(vaultDir, { recursive: true, force: true });
+  await rm(userDataDir, { recursive: true, force: true });
 }
 
 /** Sidebar locator — scope all note-list assertions to it. */

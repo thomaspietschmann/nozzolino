@@ -1,6 +1,7 @@
 import { relative, basename } from 'path';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
+import { readFile as readFileNode } from 'node:fs/promises';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 import { IPC } from '@notes-app/common';
@@ -23,6 +24,11 @@ import {
 import type { VaultIndex, VaultWatcher, VaultOpsContext } from '@notes-app/vault';
 import { isConflictFile, primaryPathForConflict } from '@notes-app/sync';
 import archiver from 'archiver';
+import { startSync, stopSync } from './syncManager.js';
+import { getSyncConfig } from './store.js';
+import type { SyncSettings } from '@notes-app/common';
+import { ZipImportSource, prepareImport, writeImport } from '@notes-app/import';
+import type { ImportSummary } from '@notes-app/import';
 
 let currentVaultRoot: string | null = null;
 let vaultFS: NodeVaultFS | null = null;
@@ -145,7 +151,20 @@ export async function openVault(vaultPath: string, win: BrowserWindow) {
     win.webContents.send(IPC.VAULT_CONFLICT_DETECTED, record);
   }
 
+  // Start server-mode sync if configured (no-op for syncthing/none).
+  const syncConfig = await getSyncConfig();
+  startSync({ config: syncConfig, ctx: getCtx(), vaultKey: vaultPath, win });
+
   return vaultIndex.getAllNotes();
+}
+
+/** Restarts the sync engine with a new config (called after settings change). */
+export function applySyncConfig(config: SyncSettings, win: BrowserWindow): void {
+  if (!currentVaultRoot || !vaultFS || !vaultIndex) {
+    stopSync();
+    return;
+  }
+  startSync({ config, ctx: getCtx(), vaultKey: currentVaultRoot, win });
 }
 
 export async function readFile(relativePath: string): Promise<string> {
@@ -188,6 +207,7 @@ export async function saveImage(
 }
 
 export async function closeVault(): Promise<void> {
+  stopSync();
   for (const { timer } of pendingUnlinks.values()) clearTimeout(timer);
   pendingUnlinks.clear();
   selfWriteHashes.clear();
@@ -211,6 +231,30 @@ export async function createConflictFromExternal(
   timestamp: string,
 ): Promise<ConflictRecord> {
   return createConflictFromExternalOp(getCtx(), notePath, timestamp);
+}
+
+/**
+ * Reads an Anytype export .zip and returns a preview summary (no writes).
+ */
+export async function importAnytypePreview(filePath: string): Promise<ImportSummary> {
+  const buf = await readFileNode(filePath);
+  const source = await ZipImportSource.fromBuffer(new Uint8Array(buf));
+  const { summary } = await prepareImport(source);
+  return summary;
+}
+
+/**
+ * Reads an Anytype export .zip and writes the mapped notes into the open vault,
+ * streaming progress events to the renderer.
+ */
+export async function importAnytypeRun(filePath: string, win: BrowserWindow): Promise<ImportSummary> {
+  const buf = await readFileNode(filePath);
+  const source = await ZipImportSource.fromBuffer(new Uint8Array(buf));
+  const { notes, summary } = await prepareImport(source);
+  await writeImport(getCtx(), notes, (done, total) => {
+    win.webContents.send(IPC.IMPORT_PROGRESS, { done, total });
+  });
+  return summary;
 }
 
 /**

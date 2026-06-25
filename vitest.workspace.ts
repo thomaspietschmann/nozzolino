@@ -38,6 +38,26 @@ export default defineWorkspace([
     },
   },
   {
+    test: {
+      name: 'server',
+      include: ['server/test/**/*.test.ts', 'server/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
+  {
+    resolve: {
+      alias: {
+        '@notes-app/common': resolve('packages/common/src/index.ts'),
+        '@notes-app/vault': resolve('packages/vault/src/index.ts'),
+      },
+    },
+    test: {
+      name: 'import',
+      include: ['packages/import/src/**/*.test.ts'],
+      environment: 'node',
+    },
+  },
+  {
     resolve: {
       alias: {
         '@notes-app/common': resolve('packages/common/src/index.ts'),
