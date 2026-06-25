@@ -41,9 +41,10 @@ export function CommandPalette() {
   }, [searchOpen]);
 
   // Reset selection when results change
+  const selectedTagsKey = selectedTags.join(',');
   useEffect(() => {
     setSelectedIndex(0);
-  }, [debounced, selectedTags.join(',')]);
+  }, [debounced, selectedTagsKey]);
 
   const close = useCallback(() => {
     setSearchOpen(false);

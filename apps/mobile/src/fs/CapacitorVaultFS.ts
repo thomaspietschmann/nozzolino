@@ -82,7 +82,7 @@ export class CapacitorVaultFS implements VaultFS {
    * Native vaults are never seeded with demo content.
    * Always returns false — callers should not seed real user folders.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
+   
   async isEmpty(): Promise<boolean> {
     return false;
   }

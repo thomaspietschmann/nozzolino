@@ -12,6 +12,7 @@ export function App() {
   useEffect(() => {
     const e2ePath = window.electronAPI?.e2eVaultPath;
     if (e2ePath && !vaultRoot) void openVault(e2ePath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only auto-open
   }, []);
 
   useEffect(() => {

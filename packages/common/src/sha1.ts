@@ -29,7 +29,7 @@ export function sha1Hex(str: string): string {
   for (let off = 0; off < buf.length; off += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4, false);
     for (let i = 16; i < 80; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       const v = w[i - 3]! ^ w[i - 8]! ^ w[i - 14]! ^ w[i - 16]!;
       w[i] = (v << 1) | (v >>> 31);
     }
@@ -52,7 +52,7 @@ export function sha1Hex(str: string): string {
         f = b ^ c ^ d;
         k = 0xca62c1d6;
       }
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       const tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]!) >>> 0;
       e = d;
       d = c;

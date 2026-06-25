@@ -172,6 +172,7 @@ export function NoteEditor({ content, noteId }: NoteEditorProps) {
     };
     // noteId triggers full re-mount; other deps (handleSave, opts, pendingScrollTerm)
     // are intentionally omitted — they are read via refs at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- remount keyed on noteId only
   }, [noteId]);
 
   // Update content if it changes from outside (e.g. watcher reload).
