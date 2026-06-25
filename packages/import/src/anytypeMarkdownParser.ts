@@ -2,8 +2,35 @@ import { parseFrontmatter, posixBasename } from '@notes-app/common';
 import type { ImportSource } from './ImportSource.js';
 import type { AnytypeObject } from './model.js';
 
-/** Keys that are captured as dedicated AnytypeObject fields, not as relations. */
-const RESERVED_KEYS = new Set(['id', 'created', 'modified', 'emoji']);
+/**
+ * Anytype-internal system relations that carry no user value in our model and
+ * should be dropped from the imported frontmatter (lower-cased for matching).
+ * `id`, emoji, creation/modified dates and tags are handled explicitly below.
+ */
+const DROP_KEYS = new Set([
+  'id',
+  'object type',
+  'backlinks',
+  'links',
+  'created by',
+  'creator',
+  'last modified by',
+  'last opened date',
+  'added date',
+  'source',
+]);
+
+const EMOJI_KEYS = new Set(['emoji', 'icon']);
+const CREATED_KEYS = new Set(['creation date', 'created', 'created date']);
+const MODIFIED_KEYS = new Set(['last modified date', 'modified', 'last modification date']);
+const TAG_KEYS = new Set(['tag', 'tags']);
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter((s) => s.length > 0);
+  if (value === null || value === undefined) return [];
+  const s = String(value);
+  return s.length > 0 ? [s] : [];
+}
 
 /** Regex: markdown inline link: [label](target) */
 const MD_LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
@@ -32,19 +59,35 @@ export async function parseAnytypeBundle(source: ImportSource): Promise<AnytypeO
     const raw = await source.readText(p);
     const { frontmatter, body } = parseFrontmatter(raw);
 
-    // Title
+    // Title — first non-empty H1, else the decoded filename stem.
+    // (Anytype emits a bare `# ` heading with trailing spaces for untitled
+    // objects, so guard against an empty capture with `||`.)
     const h1Match = /^#[ \t]+(.+)$/m.exec(body);
     const stem = decodeURIComponent(posixBasename(p, '.md'));
-    const title = h1Match?.[1]?.trim() ?? stem;
+    const title = (h1Match?.[1]?.trim() || stem);
 
-    // Relations — non-reserved frontmatter fields → string[]
+    // Relations — Anytype emits capitalised, spaced keys ("Object type",
+    // "Creation date", "Tag", "Emoji", ...). Map the known ones to dedicated
+    // fields, drop Anytype-internal system relations, keep the rest as
+    // user-defined relations under their original key.
     const relations: Record<string, string[]> = {};
+    let emoji: string | undefined;
+    let createdAt: string | undefined;
+    let modifiedAt: string | undefined;
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (RESERVED_KEYS.has(key)) continue;
-      if (Array.isArray(value)) {
-        relations[key] = value.map(String);
-      } else if (value !== null && value !== undefined) {
-        relations[key] = [String(value)];
+      const norm = key.trim().toLowerCase();
+      const values = toStringArray(value);
+      if (values.length === 0) continue;
+      if (EMOJI_KEYS.has(norm)) {
+        emoji = values[0];
+      } else if (CREATED_KEYS.has(norm)) {
+        createdAt = values[0];
+      } else if (MODIFIED_KEYS.has(norm)) {
+        modifiedAt = values[0];
+      } else if (TAG_KEYS.has(norm)) {
+        relations['tags'] = values;
+      } else if (!DROP_KEYS.has(norm)) {
+        relations[key] = values;
       }
     }
 
@@ -86,9 +129,9 @@ export async function parseAnytypeBundle(source: ImportSource): Promise<AnytypeO
       relations,
       links,
       attachments,
-      createdAt: typeof frontmatter.created === 'string' ? frontmatter.created : undefined,
-      modifiedAt: typeof frontmatter.modified === 'string' ? frontmatter.modified : undefined,
-      emoji: typeof frontmatter.emoji === 'string' ? frontmatter.emoji : undefined,
+      createdAt,
+      modifiedAt,
+      emoji,
     });
   }
 
