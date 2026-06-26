@@ -92,6 +92,9 @@ export const IPC = {
   IMPORT_ANYTYPE_PICK: 'import:anytypePick',
   IMPORT_ANYTYPE_PREVIEW: 'import:anytypePreview',
   IMPORT_ANYTYPE_RUN: 'import:anytypeRun',
+  // Import — Anytype, bytes-based path (mobile: no native file dialog)
+  IMPORT_ANYTYPE_PREVIEW_BYTES: 'import:anytypePreviewBytes',
+  IMPORT_ANYTYPE_RUN_BYTES: 'import:anytypeRunBytes',
   IMPORT_PROGRESS: 'import:progress',
 } as const;
 

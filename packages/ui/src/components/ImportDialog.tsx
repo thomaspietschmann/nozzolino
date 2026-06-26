@@ -1,20 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ipc, type ImportSummary } from '../ipc.js';
 
 type Phase = 'idle' | 'previewing' | 'preview' | 'importing' | 'done' | 'error';
+
+const DESKTOP_PLATFORMS = ['darwin', 'linux', 'win32'];
+
+/** Desktop uses the native file dialog (path-based); mobile/web has no dialog so
+ * it reads the chosen file's bytes via a hidden <input type="file">. */
+function isMobilePlatform(): boolean {
+  const platform = window.electronAPI?.platform;
+  return !platform || !DESKTOP_PLATFORMS.includes(platform);
+}
 
 /** Anytype import dialog: pick a .zip, preview the mapping, then run the import (M8). */
 export function ImportDialog({ onClose }: { onClose: () => void }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [filePath, setFilePath] = useState<string | null>(null);
+  const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mobile = isMobilePlatform();
 
   useEffect(() => {
     return ipc.onImportProgress((p) => setProgress(p));
   }, []);
 
+  // ─── Desktop: native dialog → path ──────────────────────────────────────────
   const pick = async () => {
     const path = await ipc.pickAnytypeFile();
     if (!path) return;
@@ -29,11 +42,34 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // ─── Mobile/web: hidden <input> → bytes ─────────────────────────────────────
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so re-selecting the same file fires a fresh change event.
+    e.target.value = '';
+    if (!file) return;
+    setPhase('previewing');
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      setBytes(buf);
+      setSummary(await ipc.previewAnytypeImportBytes(buf));
+      setPhase('preview');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setPhase('error');
+    }
+  };
+
   const run = async () => {
-    if (!filePath) return;
     setPhase('importing');
     try {
-      setSummary(await ipc.runAnytypeImport(filePath));
+      if (mobile) {
+        if (!bytes) return;
+        setSummary(await ipc.runAnytypeImportBytes(bytes));
+      } else {
+        if (!filePath) return;
+        setSummary(await ipc.runAnytypeImport(filePath));
+      }
       setPhase('done');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -61,13 +97,33 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               Choose an Anytype export (.zip). Relations become tags and internal links become
               wiki-links.
             </p>
-            <button
-              data-testid="import-pick"
-              onClick={() => void pick()}
-              className="w-full text-sm py-2 rounded bg-accent/20 border border-accent text-zinc-900 dark:text-white"
-            >
-              Choose .zip…
-            </button>
+            {mobile ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip"
+                  data-testid="import-file-input"
+                  className="hidden"
+                  onChange={(e) => void onFileChange(e)}
+                />
+                <button
+                  data-testid="import-pick"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full text-sm py-2 rounded bg-accent/20 border border-accent text-zinc-900 dark:text-white"
+                >
+                  Choose .zip…
+                </button>
+              </>
+            ) : (
+              <button
+                data-testid="import-pick"
+                onClick={() => void pick()}
+                className="w-full text-sm py-2 rounded bg-accent/20 border border-accent text-zinc-900 dark:text-white"
+              >
+                Choose .zip…
+              </button>
+            )}
           </>
         )}
 

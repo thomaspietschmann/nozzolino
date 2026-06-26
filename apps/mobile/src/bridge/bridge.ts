@@ -1,4 +1,5 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import {
   buildVaultIndex,
   writeNote,
@@ -18,9 +19,109 @@ import type { NoteRecord, SyncSettings, SyncStatus } from '@notes-app/common';
 import { sha1Hex, sha256Hex16 } from '@notes-app/common';
 import { SyncClient, SyncEngine, InMemoryEtagCache } from '@notes-app/sync';
 import type { SyncFS } from '@notes-app/sync';
+import { ZipImportSource, prepareImport, writeImport } from '@notes-app/import';
+import type { ImportSummary } from '@notes-app/import';
 import { WebVaultFS } from '../fs/WebVaultFS.js';
 import { CapacitorVaultFS, NativeVaultPlugin } from '../fs/CapacitorVaultFS.js';
 import { watchVaultByPoll, type CapacitorWatcher } from '../fs/CapacitorWatcher.js';
+
+// ---------------------------------------------------------------------------
+// Native SyncPlugin proxy — mirrors SyncPlugin.kt @PluginMethod signatures.
+// Used to forward sync config to native so the background foreground service
+// (SyncForegroundService.kt) can sync while the WebView is dead.
+// ---------------------------------------------------------------------------
+interface SyncPluginProxy {
+  setConfig(options: { url: string; token: string; mode: string; vaultUri: string }): Promise<void>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  requestNotificationPermission(): Promise<{ granted: boolean }>;
+}
+const NativeSyncPlugin = registerPlugin<SyncPluginProxy>('SyncPlugin');
+
+/** The SAF tree URI of the currently open vault, captured on vault:open (native only). */
+let currentVaultUri: string | null = null;
+
+/** Latest sync config, kept so the appStateChange listener knows whether to run. */
+let lastSyncConfig: SyncSettings | null = null;
+/** Guards one-time appStateChange listener registration. */
+let appStateListenerRegistered = false;
+/** Guards the one-time POST_NOTIFICATIONS runtime request before the first background start. */
+let notificationPermissionRequested = false;
+
+/** Whether the native background service should run for the current config. */
+function isNativeBackgroundEligible(config: SyncSettings | null): boolean {
+  return !!(
+    config &&
+    (config.syncMode ?? 'none') === 'server' &&
+    config.serverUrl &&
+    config.syncToken &&
+    currentVaultUri
+  );
+}
+
+/**
+ * Forward the sync config to native SharedPreferences so the background service
+ * always has fresh config. Does NOT start the service — the JS SyncEngine owns
+ * the foreground; the native foreground-service owns the background. Starting
+ * both at once would race writes against the same SAF vault and create spurious
+ * conflict files. The service is instead started/stopped on the app's
+ * foreground↔background transitions (see registerAppStateSync). No-op off native;
+ * errors are swallowed so a missing native method never breaks the JS sync path.
+ */
+async function syncNativeConfig(config: SyncSettings): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  lastSyncConfig = config;
+  registerAppStateSync();
+  try {
+    await NativeSyncPlugin.setConfig({
+      url: config.serverUrl ?? '',
+      token: config.syncToken ?? '',
+      mode: config.syncMode ?? 'none',
+      vaultUri: currentVaultUri ?? '',
+    });
+  } catch (err) {
+    console.warn('[bridge] native sync config forward failed:', err);
+  }
+}
+
+/**
+ * Register a single appStateChange listener that hands sync ownership between the
+ * JS engine (foreground) and the native foreground-service (background):
+ *   - app goes to background (isActive===false) → start the native service
+ *   - app returns to foreground (isActive===true) → stop the native service
+ * Only acts when the config is server-mode and fully provisioned. Starting the
+ * service from the background transition is also the supported way to satisfy
+ * Android 14/15's "no FGS start from background" restriction.
+ */
+function registerAppStateSync(): void {
+  if (!Capacitor.isNativePlatform() || appStateListenerRegistered) return;
+  appStateListenerRegistered = true;
+  void App.addListener('appStateChange', ({ isActive }) => {
+    if (!isNativeBackgroundEligible(lastSyncConfig)) return;
+    if (isActive) {
+      // Foreground: JS engine takes over, stop the native service.
+      void NativeSyncPlugin.stop().catch((err) => {
+        console.warn('[bridge] native sync stop failed:', err);
+      });
+    } else {
+      // Background: ensure the notification permission, then start the service.
+      void startNativeBackgroundSync();
+    }
+  });
+}
+
+/** Request POST_NOTIFICATIONS once (API 33+) then start the native background service. */
+async function startNativeBackgroundSync(): Promise<void> {
+  try {
+    if (!notificationPermissionRequested) {
+      notificationPermissionRequested = true;
+      await NativeSyncPlugin.requestNotificationPermission().catch(() => undefined);
+    }
+    await NativeSyncPlugin.start();
+  } catch (err) {
+    console.warn('[bridge] native background sync start failed:', err);
+  }
+}
 
 interface FileChangedEvent {
   event: 'add' | 'change' | 'unlink';
@@ -298,9 +399,16 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
         if (uriArg && uriArg !== 'default') {
           // Opening a specific URI (from getRecent click or auto-open)
           await NativeVaultPlugin.setRoot({ uri: uriArg });
+          currentVaultUri = uriArg;
         } else {
           // Load previously saved URI (returning user)
           await capFS.open();
+          try {
+            const { uri } = await NativeVaultPlugin.getSavedFolder();
+            currentVaultUri = uri;
+          } catch {
+            currentVaultUri = null;
+          }
         }
         vaultFS = capFS;
       } else {
@@ -339,7 +447,10 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
       }
 
       // Start server-mode sync if configured (no-op for syncthing/none).
-      startMobileSync(readSyncConfig());
+      const openConfig = readSyncConfig();
+      startMobileSync(openConfig);
+      // Forward to native so background sync can run while the WebView is dead.
+      void syncNativeConfig(openConfig);
 
       return index.getAllNotes();
     }
@@ -456,6 +567,8 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
       const config = args[0] as SyncSettings;
       writeSyncConfig(config);
       startMobileSync(config);
+      // Forward to native + (re)start/stop the background sync service.
+      void syncNativeConfig(config);
       return undefined;
     }
 
@@ -475,16 +588,38 @@ async function dispatch(channel: string, args: unknown[]): Promise<unknown> {
     }
 
     // -----------------------------------------------------------------------
-    // Anytype import (M8). Desktop-first: native file picking on Android is
-    // deferred, so picking is a graceful no-op (returns null → dialog idles).
-    // The pure import pipeline itself is platform-neutral and ready to wire to
-    // a Capacitor file picker when added.
+    // Anytype import (M8). Mobile has no native file dialog, so the UI reads the
+    // chosen .zip via a hidden <input type="file"> and hands us its bytes. The
+    // import pipeline itself is platform-neutral.
     case 'import:anytypePick': {
+      // No native picker yet — the UI falls back to its bytes-based flow.
       return null;
     }
+
+    case 'import:anytypePreviewBytes': {
+      const source = await ZipImportSource.fromBuffer(args[0] as Uint8Array);
+      const { summary } = await prepareImport(source);
+      return summary satisfies ImportSummary;
+    }
+
+    case 'import:anytypeRunBytes': {
+      const source = await ZipImportSource.fromBuffer(args[0] as Uint8Array);
+      const { notes, attachments, summary } = await prepareImport(source);
+      await writeImport(getCtx(), notes, attachments, (done, total) => {
+        emit('import:progress', { done, total });
+      });
+      // Refresh the sidebar/index with every freshly written note.
+      for (const note of notes) {
+        const record = index!.getNoteByPath(note.relativePath);
+        if (record) await synthesizeChanged(note.relativePath, 'add', record);
+      }
+      return summary satisfies ImportSummary;
+    }
+
     case 'import:anytypePreview':
     case 'import:anytypeRun': {
-      throw new Error('Anytype import is not yet available on mobile');
+      // Path-based channels: no filesystem path is available on mobile.
+      throw new Error('Anytype path-based import is not available on mobile; use the bytes-based flow');
     }
 
     default:

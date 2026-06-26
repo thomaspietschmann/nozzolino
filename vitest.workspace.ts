@@ -63,6 +63,7 @@ export default defineWorkspace([
         '@notes-app/common': resolve('packages/common/src/index.ts'),
         '@notes-app/vault': resolve('packages/vault/src/index.ts'),
         '@notes-app/sync': resolve('packages/sync/src/index.ts'),
+        '@notes-app/import': resolve('packages/import/src/index.ts'),
       },
     },
     test: {

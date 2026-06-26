@@ -9,7 +9,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,10 +20,29 @@ android {
     kotlinOptions {
         jvmTarget = "21"
     }
+    // Release signing is configured from environment variables in CI
+    // (see .github/workflows/release-android-desktop.yml). When the keystore
+    // env vars are absent (e.g. local debug builds), we gracefully fall back
+    // to the debug signing config so `assembleRelease` still works locally.
+    def releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    def hasReleaseKeystore = releaseKeystorePath != null &&
+        !releaseKeystorePath.isEmpty() &&
+        file(releaseKeystorePath).exists()
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
         }
     }
 }
@@ -40,6 +59,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

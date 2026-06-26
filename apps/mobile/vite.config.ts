@@ -21,11 +21,16 @@ export default defineConfig({
       '@notes-app/graph': resolve('../../packages/graph/src/index.ts'),
       '@notes-app/sync': resolve('../../packages/sync/src/index.ts'),
       '@notes-app/vault': resolve('../../packages/vault/src/index.ts'),
+      '@notes-app/import': resolve('../../packages/import/src/index.ts'),
       '@': resolve('../../packages/ui/src'),
-      // Stub Node-only modules. NodeVaultFS + VaultWatcher are tree-shaken away
-      // (sideEffects:false on @notes-app/vault), but Rollup still resolves named
-      // imports at parse time — the stubs export compatible signatures.
+      // Stub Node-only modules. NodeVaultFS + VaultWatcher + DirImportSource are
+      // tree-shaken away, but Rollup still resolves named imports at parse time —
+      // the stubs export compatible signatures. Cover both bare and node:-prefixed.
+      // More-specific 'node:fs/promises' MUST precede 'node:fs' (prefix match).
+      'node:fs/promises': resolve('./src/stubs/node-fs-promises.ts'),
+      'node:fs': resolve('./src/stubs/node-fs.ts'),
       fs: resolve('./src/stubs/node-fs.ts'),
+      'node:path': resolve('./src/stubs/node-path.ts'),
       path: resolve('./src/stubs/node-path.ts'),
       chokidar: resolve('./src/stubs/chokidar.ts'),
     },

@@ -144,6 +144,14 @@ export const ipc = {
     return window.electronAPI.invoke<ImportSummary>(IPC.IMPORT_ANYTYPE_RUN, filePath);
   },
 
+  previewAnytypeImportBytes(bytes: Uint8Array): Promise<ImportSummary> {
+    return window.electronAPI.invoke<ImportSummary>(IPC.IMPORT_ANYTYPE_PREVIEW_BYTES, bytes);
+  },
+
+  runAnytypeImportBytes(bytes: Uint8Array): Promise<ImportSummary> {
+    return window.electronAPI.invoke<ImportSummary>(IPC.IMPORT_ANYTYPE_RUN_BYTES, bytes);
+  },
+
   onImportProgress(handler: (p: { done: number; total: number }) => void): () => void {
     return window.electronAPI.on(IPC.IMPORT_PROGRESS, handler as (...args: unknown[]) => void);
   },
