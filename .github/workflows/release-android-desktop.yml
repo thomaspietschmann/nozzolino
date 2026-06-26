@@ -1,0 +1,110 @@
+name: Release Desktop & Android
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  # Build the Linux desktop artifacts (AppImage + .deb) via electron-builder
+  # and attach them to the GitHub release for the tag.
+  release-desktop:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Package desktop app (AppImage + deb)
+        run: pnpm --filter @notes-app/desktop package
+        env:
+          # Skip electron-builder auto-publish; we attach assets ourselves.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload desktop release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+
+  # Build a signed Android release APK and attach it to the GitHub release.
+  # Signing material is provided via repository secrets; see docs/release.md.
+  release-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build mobile web bundle
+        run: pnpm --filter @notes-app/mobile build
+
+      - name: Capacitor sync (android)
+        run: pnpm --filter @notes-app/mobile exec cap sync android
+
+      - name: Decode signing keystore
+        run: |
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Assemble signed release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Rename APK with version tag
+        run: |
+          mkdir -p apps/mobile/android/release-out
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+             "apps/mobile/android/release-out/notes-${GITHUB_REF_NAME}.apk"
+
+      - name: Upload Android release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/mobile/android/release-out/*.apk
+
+      - name: Remove decoded keystore
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/release.keystore"
