@@ -50,6 +50,14 @@ export function startSync(deps: StartSyncDeps): void {
     listDirectory: (p) => vaultFS.listDirectory(p),
     exists: (p) => vaultFS.exists(p),
     stat: (p) => vaultFS.stat(p),
+    readBinaryFile: (p) => vaultFS.readBinaryFile(p),
+    writeBinaryFile: async (p, b64) => {
+      // Skip onDidWrite for binaries: the watcher's self-write check reads the
+      // file as UTF-8 and sha1s it, which can never match a base64 attribution.
+      // A spurious "external change" echo on a binary is harmless — the next
+      // sync pass sees local etag == server etag and no-ops (no text conflict).
+      await vaultFS.writeBinaryFile(p, b64);
+    },
   };
 
   engine = new SyncEngine({

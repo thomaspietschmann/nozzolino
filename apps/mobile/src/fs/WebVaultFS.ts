@@ -139,4 +139,10 @@ export class WebVaultFS implements VaultFS {
   async writeBinaryFile(path: string, base64: string): Promise<void> {
     await this.getDB().put('binary', { path, data: base64, mtime: Date.now() });
   }
+
+  async readBinaryFile(path: string): Promise<string> {
+    const row = await this.getDB().get('binary', path);
+    if (!row) throw new Error(`ENOENT: ${path}`);
+    return row.data;
+  }
 }

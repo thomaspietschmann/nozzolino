@@ -25,6 +25,10 @@ export interface SyncFS {
   listDirectory(path: string): Promise<{ path: string; isDirectory: boolean }[]>;
   exists(path: string): Promise<boolean>;
   stat(path: string): Promise<{ mtime: Date }>;
+  /** Read a binary attachment, returning its bytes as base64. */
+  readBinaryFile(path: string): Promise<string>;
+  /** Write a binary attachment from base64 bytes. */
+  writeBinaryFile(path: string, base64: string): Promise<void>;
 }
 
 /** Persisted map of last-acknowledged server ETags, keyed by vault-relative path. */
@@ -81,4 +85,15 @@ export interface SyncTransport {
   >;
   deleteFile(path: string, ifMatch?: string): Promise<void>;
   health(): Promise<{ ok: boolean; version: string }>;
+  /** Fetch a binary attachment's raw bytes + ETag. */
+  getBinary(path: string): Promise<{ bytes: Uint8Array; etag: string }>;
+  /**
+   * Upload a binary attachment's raw bytes. On a 409 the server's content is not
+   * returned (binary merge is meaningless — the engine resolves last-write-wins).
+   */
+  putBinary(
+    path: string,
+    bytes: Uint8Array,
+    ifMatch?: string,
+  ): Promise<{ ok: true; etag: string } | { ok: false; conflict: true; etag: string }>;
 }

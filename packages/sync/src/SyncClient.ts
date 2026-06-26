@@ -95,6 +95,36 @@ export class SyncClient implements SyncTransport {
     return { ok: true, etag: body.etag };
   }
 
+  async getBinary(path: string): Promise<{ bytes: Uint8Array; etag: string }> {
+    const res = await this.fetchImpl(`${this.base}/api/files/${this.encodePath(path)}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw new SyncError(`getBinary ${path} failed: ${res.status}`, res.status);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const etag = res.headers.get('ETag') ?? '';
+    return { bytes, etag };
+  }
+
+  async putBinary(
+    path: string,
+    bytes: Uint8Array,
+    ifMatch?: string,
+  ): Promise<{ ok: true; etag: string } | { ok: false; conflict: true; etag: string }> {
+    const headers = this.authHeaders({ 'Content-Type': 'application/octet-stream' });
+    if (ifMatch) headers['If-Match'] = ifMatch;
+    const res = await this.fetchImpl(`${this.base}/api/files/${this.encodePath(path)}`, {
+      method: 'PUT',
+      headers,
+      body: bytes,
+    });
+    if (res.status === 409) {
+      return { ok: false, conflict: true, etag: res.headers.get('ETag') ?? '' };
+    }
+    if (!res.ok) throw new SyncError(`putBinary ${path} failed: ${res.status}`, res.status);
+    const body = (await res.json()) as { etag: string };
+    return { ok: true, etag: body.etag };
+  }
+
   async deleteFile(path: string, ifMatch?: string): Promise<void> {
     const headers = this.authHeaders();
     if (ifMatch) headers['If-Match'] = ifMatch;

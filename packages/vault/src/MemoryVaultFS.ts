@@ -81,6 +81,11 @@ export class MemoryVaultFS implements VaultFS {
     this.mtimes.set(path, new Date());
   }
 
+  async readBinaryFile(path: string): Promise<string> {
+    if (!this.binary.has(path)) throw new Error(`ENOENT: ${path}`);
+    return this.binary.get(path)!;
+  }
+
   getTextFiles(): Map<string, string> {
     return new Map(this.text);
   }

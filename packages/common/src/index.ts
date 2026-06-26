@@ -30,4 +30,6 @@ export { posixJoin, posixDirname, posixBasename } from './posixPath.js';
 
 export { sha1Hex } from './sha1.js';
 
-export { sha256Hex16 } from './sha256.js';
+export { sha256Hex16, sha256Hex16Bytes } from './sha256.js';
+
+export { bytesToBase64, base64ToBytes } from './base64.js';

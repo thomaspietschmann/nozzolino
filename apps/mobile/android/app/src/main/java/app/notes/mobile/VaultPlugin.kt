@@ -264,6 +264,22 @@ class VaultPlugin : Plugin() {
         }
     }
 
+    @PluginMethod
+    fun readBinaryFile(call: PluginCall) {
+        val path = call.getString("path") ?: run { call.reject("path required"); return }
+        try {
+            val docId = resolveDocId(path) ?: run { call.reject("ENOENT: $path"); return }
+            val bytes = context.contentResolver
+                .openInputStream(docUri(docId))
+                ?.use { it.readBytes() }
+                ?: run { call.reject("ENOENT: $path"); return }
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            call.resolve(JSObject().put("base64", base64))
+        } catch (e: Exception) {
+            call.reject("readBinaryFile failed: ${e.message}")
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun rootDocId(): String = DocumentsContract.getTreeDocumentId(treeUri!!)

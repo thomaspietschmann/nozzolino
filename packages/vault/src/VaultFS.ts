@@ -15,4 +15,6 @@ export interface VaultFS {
   mkdir(path: string): Promise<void>;
   stat(path: string): Promise<{ mtime: Date }>;
   writeBinaryFile(path: string, base64: string): Promise<void>;
+  /** Read a binary file and return its contents as base64. */
+  readBinaryFile(path: string): Promise<string>;
 }

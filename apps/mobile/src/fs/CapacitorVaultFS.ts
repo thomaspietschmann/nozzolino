@@ -20,6 +20,7 @@ interface VaultPluginProxy {
   mkdir(options: { path: string }): Promise<void>;
   stat(options: { path: string }): Promise<{ mtime: number }>;
   writeBinaryFile(options: { path: string; base64: string }): Promise<void>;
+  readBinaryFile(options: { path: string }): Promise<{ base64: string }>;
 }
 
 export const NativeVaultPlugin = registerPlugin<VaultPluginProxy>('VaultPlugin');
@@ -127,5 +128,10 @@ export class CapacitorVaultFS implements VaultFS {
 
   writeBinaryFile(path: string, base64: string): Promise<void> {
     return NativeVaultPlugin.writeBinaryFile({ path, base64 });
+  }
+
+  async readBinaryFile(path: string): Promise<string> {
+    const { base64 } = await NativeVaultPlugin.readBinaryFile({ path });
+    return base64;
   }
 }

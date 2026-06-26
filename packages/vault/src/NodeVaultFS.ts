@@ -64,4 +64,9 @@ export class NodeVaultFS implements VaultFS {
     await fs.mkdir(dirname(abs), { recursive: true });
     await fs.writeFile(abs, Buffer.from(base64, 'base64'));
   }
+
+  async readBinaryFile(path: string): Promise<string> {
+    const buf = await fs.readFile(this.abs(path));
+    return Buffer.from(buf).toString('base64');
+  }
 }

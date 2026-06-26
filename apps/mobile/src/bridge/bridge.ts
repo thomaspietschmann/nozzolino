@@ -241,6 +241,13 @@ function startMobileSync(config: SyncSettings): void {
     listDirectory: (p) => liveFS.listDirectory(p),
     exists: (p) => liveFS.exists(p),
     stat: (p) => liveFS.stat(p),
+    readBinaryFile: (p) => liveFS.readBinaryFile(p),
+    writeBinaryFile: async (p, b64) => {
+      // Skip the self-write hash for binaries: the poll watcher reads files as
+      // UTF-8 and sha1s them, which can never match a base64 attribution. A
+      // spurious echo on a binary is harmless (next pass no-ops on equal etag).
+      await liveFS.writeBinaryFile(p, b64);
+    },
   };
 
   syncEngine = new SyncEngine({
