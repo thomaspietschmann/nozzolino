@@ -461,9 +461,12 @@ describe('M6.3 — Mobile gestures', function () {
       { timeout: 3000, timeoutMsg: 'Title input form never appeared after clicking New note' },
     );
 
-    // Type a title and submit via Enter — triggers handleCreate in Sidebar.tsx
+    // Type a title and submit via Enter — triggers handleCreate in Sidebar.tsx.
+    // Use a unique title: the emulator runs with noReset:true, so a fixed name
+    // would already exist on a re-run and createNote would (correctly) dedupe,
+    // making this "exactly +1" assertion fail for a non-bug reason.
     const titleInput = await driver.$('input[placeholder="Note title…"]');
-    await titleInput.setValue('Regression Test Note');
+    await titleInput.setValue(`Regression Test Note ${Date.now()}`);
     await driver.keys(['Enter']); // form submit
 
     // Brief pause to let the SAF write complete before polling
