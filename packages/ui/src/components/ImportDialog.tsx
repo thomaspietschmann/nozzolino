@@ -83,7 +83,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
             </p>
             {summary.attachmentCount > 0 && (
               <p className="text-xs text-zinc-400">
-                {summary.attachmentCount} attachments — not imported (v1)
+                {summary.attachmentCount} attachment references → files copied into the vault
               </p>
             )}
             {phase === 'done' && (
