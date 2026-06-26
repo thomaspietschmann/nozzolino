@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "main": "dist/main/index.js",
+  "author": "Thomas Pietschmann <thomas.pietschmann@gmail.com>",
   "repository": "https://github.com/thomaspietschmann/nozzolino",
   "scripts": {
     "dev": "electron-vite dev",
