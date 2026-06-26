@@ -1,5 +1,11 @@
 # notes-app
 
+> ⚠️ **EXPERIMENTAL — use at your own risk.**
+> This is an early, experimental personal project. It has **not** been audited or
+> hardened for production use. Expect bugs, breaking changes, and rough edges.
+> **Keep backups of your vault** — sync and import can modify or overwrite files.
+> The Android background sync in particular has not been validated on real devices yet.
+
 A self-hosted, cross-platform note-taking app for personal use. Notes are stored as plain Markdown files on disk — no proprietary database, no vendor lock-in. Sync runs through your own Syncthing setup or a self-hosted server you control.
 
 Runs on **Linux desktop** (Electron) and **Android** (Capacitor). Both platforms share the same React codebase.
