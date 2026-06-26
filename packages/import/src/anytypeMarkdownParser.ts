@@ -74,11 +74,14 @@ export async function parseAnytypeBundle(source: ImportSource): Promise<AnytypeO
     let emoji: string | undefined;
     let createdAt: string | undefined;
     let modifiedAt: string | undefined;
+    let objId: string | undefined;
     for (const [key, value] of Object.entries(frontmatter)) {
       const norm = key.trim().toLowerCase();
       const values = toStringArray(value);
       if (values.length === 0) continue;
-      if (EMOJI_KEYS.has(norm)) {
+      if (norm === 'id') {
+        objId = values[0];
+      } else if (EMOJI_KEYS.has(norm)) {
         emoji = values[0];
       } else if (CREATED_KEYS.has(norm)) {
         createdAt = values[0];
@@ -124,6 +127,7 @@ export async function parseAnytypeBundle(source: ImportSource): Promise<AnytypeO
 
     results.push({
       sourcePath: p,
+      id: objId,
       title,
       body,
       relations,

@@ -43,12 +43,19 @@ export function mapObjects(objects: AnytypeObject[]): {
     return n === 1 ? t : `${t} ${n}`;
   });
 
-  // Build sourcePath → finalTitle lookup
+  // Build sourcePath → finalTitle and id → finalTitle lookups. Anytype links
+  // reference targets either by filename (slug or CID) or by object id, so we
+  // resolve against both.
   const refToTitle = new Map<string, string>();
+  const idToTitle = new Map<string, string>();
+  const titleToTitle = new Map<string, string>();
   for (let i = 0; i < objects.length; i++) {
     const obj = objects[i];
     if (obj) {
-      refToTitle.set(obj.sourcePath, finalTitles[i] ?? obj.title);
+      const finalTitle = finalTitles[i] ?? obj.title;
+      refToTitle.set(obj.sourcePath, finalTitle);
+      if (obj.id) idToTitle.set(obj.id, finalTitle);
+      titleToTitle.set(obj.title.toLowerCase(), finalTitle);
     }
   }
 
@@ -113,12 +120,15 @@ export function mapObjects(objects: AnytypeObject[]): {
       }
 
       if (!resolvedTitle) {
-        // Try matching by basename stem
+        // Try matching by basename stem (filename) or by object id (CID links).
         const stem = posixBasename(decoded, '.md');
-        for (const [srcPath, t] of refToTitle.entries()) {
-          if (posixBasename(srcPath, '.md') === stem) {
-            resolvedTitle = t;
-            break;
+        resolvedTitle = idToTitle.get(stem) ?? titleToTitle.get(stem.toLowerCase());
+        if (!resolvedTitle) {
+          for (const [srcPath, t] of refToTitle.entries()) {
+            if (posixBasename(srcPath, '.md') === stem) {
+              resolvedTitle = t;
+              break;
+            }
           }
         }
       }

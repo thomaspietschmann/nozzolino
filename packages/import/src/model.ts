@@ -6,6 +6,8 @@
 export interface AnytypeObject {
   /** Vault-relative path of the source .md file within the import bundle. */
   sourcePath: string;
+  /** Anytype object id from frontmatter (used to resolve CID-style links). */
+  id?: string;
   /** Resolved title: first H1 or filename stem. */
   title: string;
   /** Raw markdown body (frontmatter already stripped). */
