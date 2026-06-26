@@ -46,6 +46,7 @@
   "build": {
     "appId": "com.notes-app.desktop",
     "productName": "Notes",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
